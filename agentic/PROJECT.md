@@ -1,31 +1,45 @@
 # PROJECT.md
 
 ## Project Name
-<!-- Replace with your project name -->
+mta-trader
 
 ## Goal
-<!-- One paragraph describing what this project does and why -->
+Bot trader สำหรับ Forex บน MT5 — รันอัลกอริทึมการเทรดที่กำหนดเองโดย dev เพื่อ automate การซื้อขายในตลาด Forex
+
+**หน้าหลัก:**
+- Dashboard — แสดง trade ที่รันอยู่และ P&L
+- Log ประวัติการเทรด
+- Settings algorithm
+- Optimize — เปรียบเทียบและวัดผล config รูปแบบต่างๆ พร้อมประวัติการแก้ไข
 
 ## Tech Stack
-<!-- List languages, frameworks, and key tools -->
+- Language: TypeScript
+- Frontend: Next.js (Cloudflare Pages)
+- Backend: Hono (Cloudflare Workers)
+- Database: Cloudflare D1 (SQLite)
+- Auth: Bearer token (packages/auth)
+- Package manager: pnpm
+- Linting: Biome
+- Testing: Vitest + Playwright
+- State: TanStack Query + Zustand
 
 ## Team / Agents
-<!-- List assigned agents and their domains -->
+เจ้าของโปรเจกต์คนเดียว — ทดลองใช้งานส่วนตัวก่อน
 
 ## Current Stage
-<!-- Which pipeline stage is currently active -->
+Greenfield — เริ่มต้นจากศูนย์
 
 ---
 
 ## Status
-<!-- ACTIVE | PAUSED | COMPLETE -->
+ACTIVE
 
 ---
 
 ## License
 
 ```
-license_status: inactive
+license_status: active
 ```
 
 <!-- Dev sets this to "active" before any work begins. -->
@@ -38,7 +52,7 @@ license_status: inactive
 
 ```
 conductor_branch: main
-owner_email:
+owner_email: wansing05@gmail.com
 ```
 
 <!-- conductor_branch: the branch all PRs merge into (answer from QUESTIONS.md Q23) -->

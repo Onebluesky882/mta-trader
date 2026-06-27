@@ -143,4 +143,34 @@ Use **Anthropic Managed Agents** (`/v1/agents`, `/v1/sessions`) with a `github_r
 
 ⸻
 
+## Decision: Tech Stack — mta-trader
+
+**Date:** 2026-06-27
+**Status:** ACCEPTED
+
+**Context:**
+Greenfield project — MT5 Forex trading bot with web dashboard for monitoring and configuration.
+
+**Decision:**
+
+| Setting | Value |
+|---------|-------|
+| Language | TypeScript |
+| Frontend framework | Next.js (inferred from multi-page dashboard requirement) |
+| Backend | Hono |
+| Database | Cloudflare D1 (SQLite) |
+| Auth | packages/auth — Bearer token |
+| Deployment | Cloudflare Workers + Pages |
+| Package manager | pnpm |
+| Linting/Formatting | Biome |
+| Testing | Vitest (unit) + Playwright (e2e) |
+| State management | TanStack Query + Zustand |
+| Naming conventions | PascalCase components, camelCase functions, kebab-case files, UPPER_SNAKE_CASE constants |
+
+**Consequences:**
+- All workers must follow this stack — no deviations without Conductor approval
+- MT5 integration layer (Python/MQL5 bridge) may be added as a separate service if needed
+
+⸻
+
 <!-- Add one section per decision -->
