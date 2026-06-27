@@ -31,4 +31,4 @@ bucket_name = "fullstack-builder-storage"
 [[d1_databases]]
 binding = "DB"
 database_name = "fullstack-builder-db"
-database_id = "965e371a-0158-4ecf-9653-d7ab2f6ef7ef"
+database_id = "PLACEHOLDER"

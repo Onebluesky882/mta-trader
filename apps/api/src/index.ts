@@ -10,6 +10,12 @@ import { forumRouter } from './domains/forum/forum.route'
 import { roadmapRouter } from './domains/roadmap/roadmap.route'
 import { agentRouter } from './domains/agent/agent.route'
 import { setupRouter } from './domains/setup/setup.route'
+// MTA Trader routes
+import { mtaAuthRouter } from './routes/auth'
+import { dashboardRouter } from './routes/dashboard'
+import { tradesRouter } from './routes/trades'
+import { settingsRouter } from './routes/settings'
+import { optimizeRouter } from './routes/optimize'
 
 type Bindings = {
   DB: D1Database
@@ -43,6 +49,8 @@ app.use('*', cors({
 }))
 
 app.route('/health', health)
+// MTA Trader: /api/auth/login must be registered before the better-auth catch-all
+app.route('/api/auth', mtaAuthRouter)
 app.route('/api/auth', authRouter)
 app.route('/api/user', userRouter)
 app.route('/api/email', emailRouter)
@@ -52,5 +60,10 @@ app.route('/api/forum', forumRouter)
 app.route('/api/roadmap', roadmapRouter)
 app.route('/api/agent', agentRouter)
 app.route('/api/setup', setupRouter)
+// MTA Trader trading routes (all protected)
+app.route('/api/dashboard', dashboardRouter)
+app.route('/api/trades', tradesRouter)
+app.route('/api/settings', settingsRouter)
+app.route('/api/optimize', optimizeRouter)
 
 export default app

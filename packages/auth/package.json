@@ -8,9 +8,13 @@
   "dependencies": {
     "better-auth": "latest"
   },
+  "peerDependencies": {
+    "hono": ">=4.0.0"
+  },
   "devDependencies": {
     "@gover-agent/config": "workspace:*",
     "@gover-agent/db": "workspace:*",
+    "hono": "latest",
     "typescript": "latest"
   }
 }
