@@ -17,6 +17,7 @@
     "@gover-agent/auth": "workspace:*",
     "@gover-agent/db": "workspace:*",
     "@gover-agent/email": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "better-auth": "^1.6.19",
     "hono": "latest",
     "stripe": "^22.2.1",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
     "@gover-agent/config": "workspace:*",
+    "@types/bcryptjs": "^3.0.0",
     "typescript": "latest",
     "vitest": "latest",
     "wrangler": "latest"
