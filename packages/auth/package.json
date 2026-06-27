@@ -1,0 +1,16 @@
+{
+  "name": "@gover-agent/auth",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "better-auth": "latest"
+  },
+  "devDependencies": {
+    "@gover-agent/config": "workspace:*",
+    "@gover-agent/db": "workspace:*",
+    "typescript": "latest"
+  }
+}

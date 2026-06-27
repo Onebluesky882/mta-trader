@@ -1,0 +1,32 @@
+{
+  "name": "@gover-agent/api",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.105.0",
+    "@aws-sdk/client-s3": "^3.1071.0",
+    "@aws-sdk/s3-request-presigner": "^3.1071.0",
+    "@gover-agent/auth": "workspace:*",
+    "@gover-agent/db": "workspace:*",
+    "@gover-agent/email": "workspace:*",
+    "better-auth": "^1.6.19",
+    "hono": "latest",
+    "stripe": "^22.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "@gover-agent/config": "workspace:*",
+    "typescript": "latest",
+    "vitest": "latest",
+    "wrangler": "latest"
+  }
+}

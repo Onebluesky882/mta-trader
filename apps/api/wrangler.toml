@@ -1,0 +1,34 @@
+name = "fullstack-builder-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+FROM_EMAIL = "noreply@yourdomain.com"
+OWNER_EMAIL = ""
+R2_ACCOUNT_ID = "c40a6cc1eb575a43f79e9b4d9cc6a88d"
+R2_BUCKET_NAME = "fullstack-builder-storage"
+GITHUB_REPO_OWNER = "Onebluesky882"
+GITHUB_TEMPLATE_REPO = "goveragent-template"
+# Secrets — set via: wrangler secret put <NAME>
+# RESEND_API_KEY
+# STRIPE_SECRET_KEY
+# STRIPE_PUBLISHABLE_KEY
+# STRIPE_WEBHOOK_SECRET
+# GITHUB_TOKEN
+# R2_ACCESS_KEY_ID
+# R2_SECRET_ACCESS_KEY
+# ANTHROPIC_API_KEY          ← your Anthropic API key
+# ANTHROPIC_AGENT_ID         ← output from: npx tsx scripts/setup-anthropic-agent.ts
+# ANTHROPIC_ENV_ID           ← output from: npx tsx scripts/setup-anthropic-agent.ts
+# DEPLOY_WEBHOOK_SECRET      ← random secret shared with GitHub Actions
+# SITE_URL                   ← client's live website URL e.g. https://client-web.workers.dev
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "fullstack-builder-storage"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fullstack-builder-db"
+database_id = "965e371a-0158-4ecf-9653-d7ab2f6ef7ef"

@@ -1,0 +1,32 @@
+{
+  "name": "@gover-agent/admin",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "cf-build": "opennextjs-cloudflare build",
+    "deploy": "wrangler deploy",
+    "start": "next start --port 3001",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gover-agent/ui": "workspace:*",
+    "@tanstack/react-query": "latest",
+    "next": "15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "latest"
+  },
+  "devDependencies": {
+    "@gover-agent/config": "workspace:*",
+    "@opennextjs/cloudflare": "^1.19.11",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest",
+    "vitest": "latest",
+    "wrangler": "^4.101.0"
+  }
+}

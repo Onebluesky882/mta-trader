@@ -1,0 +1,24 @@
+# ── Auth ──────────────────────────────────────────────
+OWNER_EMAIL=your_owner_email@example.com
+
+# ── Email (Resend) ────────────────────────────────────
+RESEND_API_KEY=re_your_resend_api_key
+
+# ── Payment (Stripe) ──────────────────────────────────
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
+STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+
+# ── Storage (Cloudflare R2) ───────────────────────────
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+
+# ── AI Agent (Anthropic) ──────────────────────────────
+# Run: npx tsx scripts/setup-anthropic-agent.ts to generate AGENT_ID and ENV_ID
+ANTHROPIC_API_KEY=sk-ant-your_anthropic_api_key
+ANTHROPIC_AGENT_ID=agent_your_agent_id
+ANTHROPIC_ENV_ID=env_your_environment_id
+
+# ── Deploy webhook (GitHub Actions → API) ─────────────
+DEPLOY_WEBHOOK_SECRET=your_random_secret_string
+SITE_URL=https://your-web.workers.dev

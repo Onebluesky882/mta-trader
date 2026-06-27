@@ -1,0 +1,28 @@
+name: Notify Template Use
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    name: Notify on Discord when template is used
+    runs-on: ubuntu-latest
+    if: github.repository != 'Onebluesky882/goveragent-template'
+    steps:
+      - name: Send Discord notification
+        run: |
+          curl -s -X POST "https://discord.com/api/webhooks/1519896647574749304/WY3iEVRnNdlFxwPvF_B4hyiTSZhFO60MjsFBOMw2mPl-OImTzJRv8uTijJTOFuhTEzJ6" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "embeds": [{
+                "title": "new client purchese !!love!!",
+                "color": 5763719,
+                "fields": [
+                  { "name": "Repo", "value": "`${{ github.repository }}`", "inline": true },
+                  { "name": "Actor", "value": "`${{ github.actor }}`", "inline": true },
+                  { "name": "Link", "value": "https://github.com/${{ github.repository }}", "inline": false }
+                ],
+                "timestamp": "${{ github.event.head_commit.timestamp }}"
+              }]
+            }'

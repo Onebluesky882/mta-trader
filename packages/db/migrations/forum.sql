@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS forum_posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_replies (
+  id TEXT PRIMARY KEY,
+  body TEXT NOT NULL,
+  post_id TEXT NOT NULL REFERENCES forum_posts(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL
+);
