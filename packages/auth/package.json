@@ -5,12 +5,22 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
   "dependencies": {
-    "better-auth": "latest"
+    "better-auth": "latest",
+    "jose": "^6.2.3",
+    "bcryptjs": "^3.0.3",
+    "hono": "latest"
   },
   "devDependencies": {
     "@gover-agent/config": "workspace:*",
     "@gover-agent/db": "workspace:*",
-    "typescript": "latest"
+    "@cloudflare/workers-types": "latest",
+    "@types/bcryptjs": "^3.0.0",
+    "typescript": "latest",
+    "vitest": "^4.1.9"
   }
 }
