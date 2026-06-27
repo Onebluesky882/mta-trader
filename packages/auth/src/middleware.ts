@@ -1,49 +1,24 @@
 import type { MiddlewareHandler } from 'hono'
-import { verifyToken } from './auth'
-
-export interface AuthEnv {
-  Bindings: {
-    JWT_SECRET: string
-  }
-  Variables: {
-    user: { userId: string; role: string }
-  }
-}
+import type { Auth } from './auth'
 
 /**
- * Hono middleware that validates the Authorization: Bearer <token> header.
+ * Hono middleware that validates a Bearer token via better-auth.
+ * Returns 401 with the standard error envelope when the token is missing
+ * or invalid.  Stores the resolved session user in `c.var.user`.
  *
- * On success: sets c.get('user') = { userId, role } and calls next().
- * On failure: returns 401 { error, code: "UNAUTHORIZED" }.
- *
- * JWT_SECRET is read from c.env.JWT_SECRET — never hardcoded.
+ * Usage:
+ *   import { createAuth, authMiddleware } from '@gover-agent/auth'
+ *   const auth = createAuth(db, TRUSTED_ORIGINS)
+ *   router.use('*', authMiddleware(auth))
  */
-export const authMiddleware = (): MiddlewareHandler<AuthEnv> => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function authMiddleware(auth: Auth): MiddlewareHandler<any> {
   return async (c, next) => {
-    const authHeader = c.req.header('Authorization')
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return c.json({ error: 'Missing or malformed Authorization header', code: 'UNAUTHORIZED' }, 401)
+    const session = await auth.api.getSession({ headers: c.req.raw.headers })
+    if (!session) {
+      return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
     }
-
-    const token = authHeader.slice(7).trim()
-    if (!token) {
-      return c.json({ error: 'Missing token', code: 'UNAUTHORIZED' }, 401)
-    }
-
-    const secret = c.env.JWT_SECRET
-    if (!secret) {
-      return c.json({ error: 'Server misconfiguration', code: 'UNAUTHORIZED' }, 401)
-    }
-
-    const payload = await verifyToken(token, secret)
-
-    if (!payload) {
-      return c.json({ error: 'Invalid or expired token', code: 'UNAUTHORIZED' }, 401)
-    }
-
-    c.set('user', { userId: payload.userId, role: payload.role })
-
+    c.set('user', session.user)
     await next()
   }
 }
