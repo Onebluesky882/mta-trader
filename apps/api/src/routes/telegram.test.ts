@@ -46,12 +46,12 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('Telegram auth guard', () => {
   it('returns 401 when secret header is missing', async () => {
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('/help')), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('/help')), MOCK_ENV)
     expect(res.status).toBe(401)
   })
 
   it('returns 401 when secret is wrong', async () => {
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('/help'), 'bad-secret'), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('/help'), 'bad-secret'), MOCK_ENV)
     expect(res.status).toBe(401)
   })
 })
@@ -60,7 +60,7 @@ describe('Telegram auth guard', () => {
 
 describe('/help command', () => {
   it('sends help text and returns ok', async () => {
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('/help'), VALID_SECRET), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('/help'), VALID_SECRET), MOCK_ENV)
     expect(res.status).toBe(200)
     const body = await res.json() as { ok: boolean }
     expect(body.ok).toBe(true)
@@ -84,7 +84,7 @@ describe('/status command', () => {
       .mockResolvedValueOnce({ count: 2 })
       .mockResolvedValueOnce({ totalPnL: 125.5, totalClosed: 8, wins: 6 })
 
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('/status'), VALID_SECRET), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('/status'), VALID_SECRET), MOCK_ENV)
     expect(res.status).toBe(200)
 
     const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit]
@@ -102,7 +102,7 @@ describe('/trades command', () => {
       { symbol: 'EURUSD', direction: 'BUY', open_price: 1.08500, volume: 0.1, open_time: '2026-06-28T10:00:00Z' },
     ])
 
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('/trades'), VALID_SECRET), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('/trades'), VALID_SECRET), MOCK_ENV)
     expect(res.status).toBe(200)
 
     const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit]
@@ -114,7 +114,7 @@ describe('/trades command', () => {
   it('shows empty message when no open trades', async () => {
     mockQuery.mockResolvedValue([])
 
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('/trades'), VALID_SECRET), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('/trades'), VALID_SECRET), MOCK_ENV)
     expect(res.status).toBe(200)
 
     const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit]
@@ -129,7 +129,7 @@ describe('/today command', () => {
   it('shows today PnL', async () => {
     mockFirst.mockResolvedValue({ pnl: 45.0, count: 3 })
 
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('/today'), VALID_SECRET), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('/today'), VALID_SECRET), MOCK_ENV)
     expect(res.status).toBe(200)
 
     const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit]
@@ -142,7 +142,7 @@ describe('/today command', () => {
 
 describe('unknown command', () => {
   it('echoes back and suggests /help', async () => {
-    const res = await telegramRouter.request('/webhook', makeReq(makeUpdate('hello world'), VALID_SECRET), MOCK_ENV)
+    const res = await telegramRouter.request('/telegram', makeReq(makeUpdate('hello world'), VALID_SECRET), MOCK_ENV)
     expect(res.status).toBe(200)
 
     const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit]

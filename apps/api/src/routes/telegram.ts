@@ -20,7 +20,7 @@ const telegramRouter = new Hono<{ Bindings: Bindings }>()
 
 // ── Auth — Telegram sends X-Telegram-Bot-Api-Secret-Token ─────
 
-telegramRouter.post('/webhook', async (c) => {
+telegramRouter.post('/telegram', async (c) => {
   const incoming = c.req.header('X-Telegram-Bot-Api-Secret-Token')
   if (!incoming || incoming !== c.env.TELEGRAM_SECRET_TOKEN) {
     return c.json({ error: 'Unauthorized' }, 401)
