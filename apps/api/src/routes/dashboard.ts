@@ -4,6 +4,7 @@ import { createDb } from '@gover-agent/db'
 import { createD1Client } from '../db/client'
 
 type Bindings = { DB: D1Database }
+type Variables = { user: { id: string; email: string } }
 
 const TRUSTED_ORIGINS = [
   'http://localhost:3000',
@@ -11,49 +12,39 @@ const TRUSTED_ORIGINS = [
   'http://localhost:3002',
 ]
 
-const dashboardRouter = new Hono<{ Bindings: Bindings }>()
+const dashboardRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
-// Apply auth middleware to all dashboard routes
 dashboardRouter.use('*', async (c, next) => {
   const db = createDb(c.env.DB)
   const auth = createAuth(db, TRUSTED_ORIGINS)
   return authMiddleware(auth)(c, next)
 })
 
-/**
- * GET /api/dashboard
- * Returns bot status, open trade count, today's PnL, total PnL, win rate
- */
 dashboardRouter.get('/', async (c) => {
+  const user = c.get('user') as { id: string }
+  const userId = user.id
   try {
     const d1 = createD1Client(c.env.DB)
-
-    const todayStart = new Date()
-    todayStart.setUTCHours(0, 0, 0, 0)
-    const todayStr = todayStart.toISOString().slice(0, 10)
+    const todayStr = new Date().toISOString().slice(0, 10)
 
     const [openRow, todayRow, totalsRow, botRow] = await Promise.all([
-      // Count of open trades
       d1.first<{ count: number }>(
-        'SELECT COUNT(*) as count FROM trades WHERE status = ?',
-        ['OPEN']
+        'SELECT COUNT(*) as count FROM trades WHERE status = ? AND user_id = ?',
+        ['OPEN', userId]
       ),
-      // Today's closed profit
       d1.first<{ todayPnL: number | null }>(
-        "SELECT SUM(profit) as todayPnL FROM trades WHERE status = 'CLOSED' AND close_time >= ?",
-        [todayStr]
+        "SELECT SUM(profit) as todayPnL FROM trades WHERE status = 'CLOSED' AND close_time >= ? AND user_id = ?",
+        [todayStr, userId]
       ),
-      // All-time stats for win rate and total PnL
       d1.first<{ totalPnL: number | null; totalClosed: number; wins: number }>(
-        `SELECT
-          SUM(profit) as totalPnL,
-          COUNT(*) as totalClosed,
-          SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as wins
-        FROM trades WHERE status = 'CLOSED'`
+        `SELECT SUM(profit) as totalPnL, COUNT(*) as totalClosed,
+         SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as wins
+         FROM trades WHERE status = 'CLOSED' AND user_id = ?`,
+        [userId]
       ),
-      // Bot heartbeat status (stale after 5 minutes)
       d1.first<{ status: string; last_seen: string }>(
-        "SELECT status, last_seen FROM bot_status WHERE id = 'singleton'"
+        'SELECT status, last_seen FROM bot_status WHERE user_id = ? ORDER BY last_seen DESC LIMIT 1',
+        [userId]
       ),
     ])
 
@@ -66,19 +57,11 @@ dashboardRouter.get('/', async (c) => {
 
     let botStatus: 'RUNNING' | 'STOPPED' | 'ERROR' = 'STOPPED'
     if (botRow) {
-      const lastSeen = new Date(botRow.last_seen).getTime()
-      const stale = Date.now() - lastSeen > 5 * 60 * 1000
+      const stale = Date.now() - new Date(botRow.last_seen).getTime() > 5 * 60 * 1000
       botStatus = stale ? 'STOPPED' : (botRow.status as 'RUNNING' | 'STOPPED' | 'ERROR')
     }
 
-    return c.json({
-      botStatus,
-      openTrades,
-      todayPnL,
-      totalPnL,
-      winRate,
-      lastUpdated: new Date().toISOString(),
-    })
+    return c.json({ botStatus, openTrades, todayPnL, totalPnL, winRate, lastUpdated: new Date().toISOString() })
   } catch {
     return c.json({ error: 'Internal server error', code: 'INTERNAL_ERROR' }, 500)
   }

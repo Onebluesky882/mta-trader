@@ -5,9 +5,9 @@ import { createD1Client } from '../db/client'
 
 type Bindings = {
   DB: D1Database
-  MT5_WEBHOOK_SECRET: string
   ANTHROPIC_API_KEY: string
 }
+type Variables = { user: { id: string; email: string } }
 
 const TRUSTED_ORIGINS = [
   'http://localhost:3000',
@@ -27,6 +27,7 @@ interface SignalRow {
   h4_analysis: string
   h1_analysis: string
   analyzed_at: string
+  user_id: string
 }
 
 type TFAnalysis = { trend: string; rsi: number; macd: string; ema: string }
@@ -43,21 +44,15 @@ interface ClaudeSignal {
 
 function rowToSignal(r: SignalRow) {
   return {
-    id: r.id,
-    symbol: r.symbol,
+    id: r.id, symbol: r.symbol,
     signal: r.signal as 'BUY' | 'SELL' | 'HOLD',
-    confidence: r.confidence,
-    reason: r.reason,
-    sl: r.sl,
-    tp: r.tp,
-    price: r.price,
+    confidence: r.confidence, reason: r.reason,
+    sl: r.sl, tp: r.tp, price: r.price,
     h4: JSON.parse(r.h4_analysis) as TFAnalysis,
     h1: JSON.parse(r.h1_analysis) as TFAnalysis,
     analyzedAt: r.analyzed_at,
   }
 }
-
-// ── Claude API call ───────────────────────────────────────────
 
 async function callClaude(apiKey: string, prompt: string): Promise<ClaudeSignal> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -86,9 +81,7 @@ Required JSON structure:
     }),
   })
 
-  if (!res.ok) {
-    throw new Error(`Claude API error: ${res.status}`)
-  }
+  if (!res.ok) throw new Error(`Claude API error: ${res.status}`)
 
   const data = await res.json() as { content: Array<{ type: string; text: string }> }
   const text = data.content.find(b => b.type === 'text')?.text ?? '{}'
@@ -106,69 +99,64 @@ function buildPrompt(body: {
   h1Indicators?: { rsi: number; macdHistogram: number; ema21: number }
 }): string {
   const lines: string[] = [`Symbol: ${body.symbol}`]
-
   if (body.currentPrice) lines.push(`Current Price: ${body.currentPrice}`)
 
   if (body.h4Indicators) {
     const i = body.h4Indicators
     lines.push(`\nH4 Indicators:\n- RSI: ${i.rsi}\n- MACD Histogram: ${i.macdHistogram}\n- EMA 50: ${i.ema50}\n- EMA 200: ${i.ema200}`)
-  } else if (body.h4Candles && body.h4Candles.length > 0) {
+  } else if (body.h4Candles?.length) {
     const last5 = body.h4Candles.slice(-5)
-    const rows = last5.map(c => `  ${c.time} O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n')
-    lines.push(`\nH4 Candles (last ${last5.length}):\n${rows}`)
+    lines.push(`\nH4 Candles (last ${last5.length}):\n${last5.map(c => `  ${c.time} O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n')}`)
   }
 
   if (body.h1Indicators) {
     const i = body.h1Indicators
     lines.push(`\nH1 Indicators:\n- RSI: ${i.rsi}\n- MACD Histogram: ${i.macdHistogram}\n- EMA 21: ${i.ema21}`)
-  } else if (body.h1Candles && body.h1Candles.length > 0) {
+  } else if (body.h1Candles?.length) {
     const last5 = body.h1Candles.slice(-5)
-    const rows = last5.map(c => `  ${c.time} O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n')
-    lines.push(`\nH1 Candles (last ${last5.length}):\n${rows}`)
+    lines.push(`\nH1 Candles (last ${last5.length}):\n${last5.map(c => `  ${c.time} O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n')}`)
   }
 
   if (!body.h4Indicators && !body.h4Candles && !body.h1Indicators && !body.h1Candles) {
-    lines.push('\nNo real-time candle data provided — give a general technical outlook based on current market session and symbol characteristics.')
+    lines.push('\nNo real-time candle data provided — give a general technical outlook based on current market session.')
   }
 
   lines.push('\nProvide a trading signal with SL/TP levels based on this data.')
   return lines.join('\n')
 }
 
-// ── Router ────────────────────────────────────────────────────
+const aiSignalRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
-const aiSignalRouter = new Hono<{ Bindings: Bindings }>()
-
-// POST /api/ai-signal/analyze
-// Auth: X-MT5-Secret (EA) OR Bearer token (web)
+// POST /api/ai-signal/analyze — EA (X-MT5-Secret) or web (Bearer)
 aiSignalRouter.post('/analyze', async (c) => {
-  const mtSecret = c.req.header('X-MT5-Secret')
-  const isMT5 = !!mtSecret && mtSecret === c.env.MT5_WEBHOOK_SECRET
+  const d1 = createD1Client(c.env.DB)
+  let userId: string | null = null
 
-  if (!isMT5) {
-    // Bearer auth for web
+  const mtSecret = c.req.header('X-MT5-Secret')
+  if (mtSecret) {
+    const keyRow = await d1.first<{ user_id: string }>(
+      'SELECT user_id FROM user_api_keys WHERE api_key = ?', [mtSecret]
+    )
+    userId = keyRow?.user_id ?? null
+  }
+
+  if (!userId) {
+    // Try Bearer auth
     const db = createDb(c.env.DB)
     const auth = createAuth(db, TRUSTED_ORIGINS)
-    const middleware = authMiddleware(auth)
-    let authorized = false
-    await middleware(c, async () => { authorized = true })
-    if (!authorized) return c.json({ error: 'Unauthorized' }, 401)
+    await authMiddleware(auth)(c, async () => {
+      const u = c.get('user')
+      if (u?.id) userId = u.id
+    })
   }
 
-  let body: {
-    symbol?: unknown
-    currentPrice?: unknown
-    h4Candles?: unknown
-    h1Candles?: unknown
-    h4Indicators?: unknown
-    h1Indicators?: unknown
-  }
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+
+  let body: { symbol?: unknown; currentPrice?: unknown; h4Candles?: unknown; h1Candles?: unknown; h4Indicators?: unknown; h1Indicators?: unknown }
   try { body = await c.req.json() }
   catch { return c.json({ error: 'Invalid JSON' }, 400) }
 
-  if (typeof body.symbol !== 'string') {
-    return c.json({ error: 'symbol required' }, 400)
-  }
+  if (typeof body.symbol !== 'string') return c.json({ error: 'symbol required' }, 400)
 
   try {
     const prompt = buildPrompt({
@@ -182,56 +170,47 @@ aiSignalRouter.post('/analyze', async (c) => {
 
     const result = await callClaude(c.env.ANTHROPIC_API_KEY, prompt)
 
-    // Validate signal
-    if (!['BUY', 'SELL', 'HOLD'].includes(result.signal)) {
-      result.signal = 'HOLD'
-    }
+    if (!['BUY', 'SELL', 'HOLD'].includes(result.signal)) result.signal = 'HOLD'
     result.confidence = Math.max(0, Math.min(100, result.confidence ?? 50))
 
-    const d1 = createD1Client(c.env.DB)
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
     const price = typeof body.currentPrice === 'number' ? body.currentPrice : null
 
     await d1.run(
-      `INSERT INTO ai_signals (id, symbol, signal, confidence, reason, sl, tp, price, h4_analysis, h1_analysis, analyzed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ai_signals (id, symbol, signal, confidence, reason, sl, tp, price, h4_analysis, h1_analysis, analyzed_at, user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, body.symbol, result.signal, result.confidence,
         result.reason ?? '',
         result.sl ?? null, result.tp ?? null, price,
         JSON.stringify(result.h4 ?? {}),
         JSON.stringify(result.h1 ?? {}),
-        now,
+        now, userId,
       ]
     )
 
-    return c.json({
-      id, symbol: body.symbol,
-      signal: result.signal, confidence: result.confidence,
-      reason: result.reason, sl: result.sl, tp: result.tp, price,
-      h4: result.h4, h1: result.h1,
-      analyzedAt: now,
-    })
+    return c.json({ id, symbol: body.symbol, signal: result.signal, confidence: result.confidence, reason: result.reason, sl: result.sl, tp: result.tp, price, h4: result.h4, h1: result.h1, analyzedAt: now })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Analysis failed'
-    return c.json({ error: msg }, 500)
+    return c.json({ error: err instanceof Error ? err.message : 'Analysis failed' }, 500)
   }
 })
 
-// GET /api/ai-signal/latest — Bearer auth
-aiSignalRouter.get('/latest', async (c) => {
+// Apply auth for remaining endpoints
+aiSignalRouter.use('*', async (c, next) => {
   const db = createDb(c.env.DB)
   const auth = createAuth(db, TRUSTED_ORIGINS)
-  const middleware = authMiddleware(auth)
-  let authorized = false
-  await middleware(c, async () => { authorized = true })
-  if (!authorized) return c.json({ error: 'Unauthorized' }, 401)
+  return authMiddleware(auth)(c, next)
+})
 
+// GET /api/ai-signal/latest
+aiSignalRouter.get('/latest', async (c) => {
+  const user = c.get('user') as { id: string }
+  const userId = user.id
   try {
     const d1 = createD1Client(c.env.DB)
     const row = await d1.first<SignalRow>(
-      'SELECT * FROM ai_signals ORDER BY analyzed_at DESC LIMIT 1'
+      'SELECT * FROM ai_signals WHERE user_id = ? ORDER BY analyzed_at DESC LIMIT 1', [userId]
     )
     if (!row) return c.json({ signal: null })
     return c.json({ signal: rowToSignal(row) })
@@ -240,19 +219,14 @@ aiSignalRouter.get('/latest', async (c) => {
   }
 })
 
-// GET /api/ai-signal/history — Bearer auth
+// GET /api/ai-signal/history
 aiSignalRouter.get('/history', async (c) => {
-  const db = createDb(c.env.DB)
-  const auth = createAuth(db, TRUSTED_ORIGINS)
-  const middleware = authMiddleware(auth)
-  let authorized = false
-  await middleware(c, async () => { authorized = true })
-  if (!authorized) return c.json({ error: 'Unauthorized' }, 401)
-
+  const user = c.get('user') as { id: string }
+  const userId = user.id
   try {
     const d1 = createD1Client(c.env.DB)
     const rows = await d1.query<SignalRow>(
-      'SELECT * FROM ai_signals ORDER BY analyzed_at DESC LIMIT 20'
+      'SELECT * FROM ai_signals WHERE user_id = ? ORDER BY analyzed_at DESC LIMIT 20', [userId]
     )
     return c.json({ signals: rows.map(rowToSignal) })
   } catch {

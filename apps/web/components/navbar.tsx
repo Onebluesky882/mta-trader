@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: '/settings',   label: 'Settings' },
   { href: '/optimize',   label: 'Optimize' },
   { href: '/ai-config',  label: 'AI Config' },
+  { href: '/account',    label: 'API Key' },
 ]
 
 export function Navbar() {
