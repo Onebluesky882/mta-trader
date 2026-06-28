@@ -3,7 +3,7 @@
 **Stage ID:** stage-6-web-settings
 **Domain:** apps/web
 **Branch:** stage-6-web-settings
-**Gate-In Verified:** NO
+**Gate-In Verified:** YES
 
 ---
 
