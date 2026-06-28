@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS algorithm_settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ai_config
+CREATE TABLE IF NOT EXISTS ai_config (
+  id TEXT PRIMARY KEY DEFAULT 'singleton',
+  params TEXT NOT NULL,  -- JSON string
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- optimize_snapshots
 CREATE TABLE IF NOT EXISTS optimize_snapshots (
   id TEXT PRIMARY KEY,

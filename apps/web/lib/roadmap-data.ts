@@ -8,15 +8,15 @@ export const ROADMAP_PROGRESS = `ระบบทั้งหมดขึ้น p
 - ระบบ Login / Register พร้อม JWT Bearer token
 - Dashboard แสดง P&L, Win Rate, สถานะ Bot แบบ real-time
 - Trade Log บันทึกและกรองประวัติการเทรดได้
-- Settings ปรับ parameter ของ algorithm ได้
+- Settings ปรับ parameter ของ algorithm ได้ (symbol, direction, maxTrades, lotSize, SL, TP)
 - Optimize + History เปรียบเทียบ algorithm config แบบ side-by-side
 - MT5 Bridge รับ trade-open, trade-close, heartbeat จาก MetaTrader 5 ผ่าน webhook
 - Telegram Bot แจ้งเตือนสถานะและสรุปผลการเทรดผ่าน /status /trades /today /help`
 
-export const ROADMAP_NEXT_STEPS = `- ติดตั้ง MT5 EA บน MetaTrader 5 จริง (ไฟล์ docs/mt5-ea-template.mq5)
-- ทดสอบ heartbeat และ trade webhook จาก MT5 จริง
-- บันทึก algorithm snapshot แรกใน Optimize page
-- เปรียบเทียบผลลัพธ์ระหว่าง config versions`
+export const ROADMAP_NEXT_STEPS = `- ติดตั้ง MT5 EA v2.0 บน MetaTrader 5 จริง (ไฟล์ docs/mt5-ea-template.mq5)
+- ตั้งค่า TELEGRAM_CHAT_ID ใน Cloudflare secrets
+- ทดสอบครบ 1 รอบ Open → TP/SL → Close → รายงานผล
+- บันทึก algorithm snapshot แรกใน Optimize page`
 
 export const ROADMAP_MILESTONES = [
   { id: 'M-001', name: 'Project Setup',       goal: 'ตั้งค่า monorepo, pnpm, TypeScript, Vitest, wrangler',              status: 'COMPLETE'    },
@@ -26,6 +26,6 @@ export const ROADMAP_MILESTONES = [
   { id: 'M-005', name: 'MT5 Bridge',          goal: 'รับ webhook จาก MetaTrader 5 และ sync trade status',                status: 'COMPLETE'    },
   { id: 'M-006', name: 'Telegram Bot',        goal: 'แจ้งเตือนสถานะ bot และผลเทรดผ่าน Telegram',                         status: 'COMPLETE'    },
   { id: 'M-007', name: 'Production Deploy',   goal: 'API + Web deploy บน Cloudflare, session persist ถูกต้อง',           status: 'COMPLETE'    },
-  { id: 'M-008', name: 'Bot Trading Round',    goal: 'EA อ่าน settings, เปิด/ปิด position ครบรอบ, แจ้ง Telegram',        status: 'IN_PROGRESS' },
+  { id: 'M-008', name: 'Bot Trading Round',   goal: 'EA อ่าน settings, เปิด/ปิด position ครบรอบ, แจ้ง Telegram',        status: 'IN_PROGRESS' },
   { id: 'M-009', name: 'Algorithm Tuning',    goal: 'บันทึก snapshot หลังครบรอบ, เปรียบเทียบ performance versions',       status: 'PLANNING'    },
 ]

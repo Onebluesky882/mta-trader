@@ -18,6 +18,7 @@ import { settingsRouter } from './routes/settings'
 import { optimizeRouter } from './routes/optimize'
 import { mt5Router } from './routes/mt5'
 import { telegramRouter } from './routes/telegram'
+import { aiConfigRouter } from './routes/ai-config'
 
 type Bindings = {
   DB: D1Database
@@ -74,5 +75,6 @@ app.route('/api/settings', settingsRouter)
 app.route('/api/optimize', optimizeRouter)
 app.route('/api/mt5', mt5Router)
 app.route('/webhook', telegramRouter)
+app.route('/api/ai-config', aiConfigRouter)
 
 export default app

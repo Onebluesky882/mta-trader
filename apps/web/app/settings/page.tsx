@@ -6,15 +6,6 @@ import { useAppStore } from '@/store/useAppStore'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { BackButton } from '@/components/back-button'
 
-// ── helpers ──────────────────────────────────────────────────
-
-function toLabel(key: string): string {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, s => s.toUpperCase())
-    .trim()
-}
-
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric',
@@ -24,20 +15,42 @@ function fmtDate(iso: string) {
 
 type ParamValue = number | string | boolean
 
+// ── Field definitions — group + control type ──────────────────
+
+type FieldDef = {
+  key: string
+  label: string
+  group: string
+  type: 'number' | 'select' | 'text' | 'boolean'
+  options?: string[]
+  step?: number
+  hint?: string
+}
+
+const FIELD_DEFS: FieldDef[] = [
+  // Trading
+  { key: 'symbol',      label: 'Symbol',        group: 'Trading',    type: 'select',  options: ['EURUSD','GBPUSD','USDJPY','XAUUSD','AUDUSD','USDCAD'] },
+  { key: 'direction',   label: 'Direction',      group: 'Trading',    type: 'select',  options: ['BUY','SELL','BOTH'] },
+  { key: 'maxTrades',   label: 'Max Trades',     group: 'Trading',    type: 'number',  step: 1,     hint: 'จำนวน position ที่เปิดพร้อมกันสูงสุด' },
+  { key: 'lotSize',     label: 'Lot Size',       group: 'Trading',    type: 'number',  step: 0.01,  hint: 'ขนาด lot ต่อ position' },
+  { key: 'stopLoss',    label: 'Stop Loss (pips)',   group: 'Trading',type: 'number',  step: 1,     hint: 'ระยะ Stop Loss เป็น pips' },
+  { key: 'takeProfit',  label: 'Take Profit (pips)', group: 'Trading',type: 'number',  step: 1,     hint: 'ระยะ Take Profit เป็น pips' },
+  // Algorithm
+  { key: 'rsiPeriod',   label: 'RSI Period',     group: 'Algorithm',  type: 'number',  step: 1 },
+  { key: 'macdFast',    label: 'MACD Fast',      group: 'Algorithm',  type: 'number',  step: 1 },
+  { key: 'macdSlow',    label: 'MACD Slow',      group: 'Algorithm',  type: 'number',  step: 1 },
+  { key: 'macdSignal',  label: 'MACD Signal',    group: 'Algorithm',  type: 'number',  step: 1 },
+]
+
+const GROUPS = ['Trading', 'Algorithm']
+
 // ── ParamField ────────────────────────────────────────────────
 
-function ParamField({
-  paramKey,
-  value,
-  onChange,
-}: {
-  paramKey: string
+function ParamField({ def, value, onChange }: {
+  def: FieldDef
   value: ParamValue
   onChange: (v: ParamValue) => void
 }) {
-  const label = toLabel(paramKey)
-  const type = typeof value
-
   const inputBase: React.CSSProperties = {
     background: 'var(--surface-2)',
     border: '1px solid var(--border)',
@@ -46,8 +59,8 @@ function ParamField({
     fontSize: 13,
     color: 'var(--text)',
     outline: 'none',
-    transition: 'border-color 150ms',
     width: '100%',
+    transition: 'border-color 150ms',
   }
 
   return (
@@ -60,11 +73,34 @@ function ParamField({
       borderBottom: '1px solid var(--border-subtle)',
     }}>
       <div>
-        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginBottom: 2 }}>{label}</p>
-        <p style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'monospace' }}>{paramKey}</p>
+        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginBottom: 2 }}>{def.label}</p>
+        {def.hint && <p style={{ fontSize: 11, color: 'var(--text-faint)' }}>{def.hint}</p>}
+        {!def.hint && <p style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'monospace' }}>{def.key}</p>}
       </div>
 
-      {type === 'boolean' ? (
+      {def.type === 'select' ? (
+        <select
+          value={value as string}
+          onChange={e => onChange(e.target.value)}
+          style={{ ...inputBase, cursor: 'pointer' }}
+          onFocus={e => (e.target.style.borderColor = 'var(--accent-line)')}
+          onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+        >
+          {def.options!.map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      ) : def.type === 'number' ? (
+        <input
+          type="number"
+          value={value as number}
+          step={def.step ?? 1}
+          onChange={e => onChange(parseFloat(e.target.value) || 0)}
+          style={inputBase}
+          onFocus={e => (e.target.style.borderColor = 'var(--accent-line)')}
+          onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+        />
+      ) : def.type === 'boolean' ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             role="switch"
@@ -74,7 +110,7 @@ function ParamField({
               width: 40, height: 22, borderRadius: 11,
               background: value ? 'var(--accent)' : 'var(--border)',
               border: 'none', cursor: 'pointer', position: 'relative',
-              transition: 'background 200ms ease', flexShrink: 0,
+              transition: 'background 200ms', flexShrink: 0,
             }}
           >
             <span style={{
@@ -82,22 +118,12 @@ function ParamField({
               left: value ? 21 : 3,
               width: 16, height: 16,
               borderRadius: '50%', background: '#fff',
-              transition: 'left 200ms ease',
+              transition: 'left 200ms',
               boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
             }} />
           </button>
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{value ? 'Enabled' : 'Disabled'}</span>
         </div>
-      ) : type === 'number' ? (
-        <input
-          type="number"
-          value={value as number}
-          step={String(value as number).includes('.') ? 0.001 : 1}
-          onChange={e => onChange(parseFloat(e.target.value) || 0)}
-          style={inputBase}
-          onFocus={e => (e.target.style.borderColor = 'var(--accent-line)')}
-          onBlur={e => (e.target.style.borderColor = 'var(--border)')}
-        />
       ) : (
         <input
           type="text"
@@ -115,24 +141,20 @@ function ParamField({
 // ── Feedback toast ────────────────────────────────────────────
 
 function Feedback({ type, message }: { type: 'success' | 'error'; message: string }) {
-  const isSuccess = type === 'success'
+  const ok = type === 'success'
   return (
     <div className="anim-fade-up" style={{
       display: 'flex', alignItems: 'center', gap: 10,
       padding: '12px 16px', borderRadius: 8, marginBottom: 20,
-      background: isSuccess ? 'rgba(76,184,122,0.08)' : 'rgba(239,68,68,0.08)',
-      border: `1px solid ${isSuccess ? 'rgba(76,184,122,0.25)' : 'rgba(239,68,68,0.25)'}`,
+      background: ok ? 'rgba(76,184,122,0.08)' : 'rgba(239,68,68,0.08)',
+      border: `1px solid ${ok ? 'rgba(76,184,122,0.25)' : 'rgba(239,68,68,0.25)'}`,
     }}>
-      {isSuccess ? (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4cb87a" strokeWidth="2.5" strokeLinecap="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
+      {ok ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4cb87a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
       ) : (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round">
-          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       )}
-      <span style={{ fontSize: 13, fontWeight: 500, color: isSuccess ? '#4cb87a' : '#ef4444' }}>{message}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: ok ? '#4cb87a' : '#ef4444' }}>{message}</span>
     </div>
   )
 }
@@ -142,7 +164,7 @@ function Feedback({ type, message }: { type: 'success' | 'error'; message: strin
 function SkeletonForm() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: '14px 0', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ height: 12, width: `${60 + i * 8}px`, background: 'var(--border)', borderRadius: 4 }} />
@@ -167,16 +189,12 @@ export default function SettingsPage() {
   const [isDirty, setIsDirty] = useState(false)
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { if (authLoading) return; if (!token) router.push("/login") }, [token, authLoading, router])
+  useEffect(() => { if (authLoading) return; if (!token) router.push('/login') }, [token, authLoading, router])
 
-  // Initialise local form state from API once
   useEffect(() => {
-    if (data && !localParams) {
-      setLocalParams(data.params)
-    }
+    if (data && !localParams) setLocalParams(data.params)
   }, [data, localParams])
 
-  // Auto-dismiss feedback after 3s
   useEffect(() => {
     if (isSuccess || isMutateError) {
       if (feedbackTimer.current) clearTimeout(feedbackTimer.current)
@@ -194,9 +212,7 @@ export default function SettingsPage() {
 
   function handleSave() {
     if (!localParams) return
-    mutate(localParams, {
-      onSuccess: () => setIsDirty(false),
-    })
+    mutate(localParams, { onSuccess: () => setIsDirty(false) })
   }
 
   function handleReset() {
@@ -214,9 +230,7 @@ export default function SettingsPage() {
             Algorithm
           </p>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <h1 style={{ fontSize: 'clamp(20px, 4vw, 28px)', fontWeight: 700, letterSpacing: '-0.03em' }}>
-              Settings
-            </h1>
+            <h1 style={{ fontSize: 'clamp(20px, 4vw, 28px)', fontWeight: 700, letterSpacing: '-0.03em' }}>Settings</h1>
             {data && (
               <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-faint)' }}>
                 <span>v{data.version}</span>
@@ -226,48 +240,67 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Feedback */}
         {isSuccess && <Feedback type="success" message="Settings saved successfully" />}
         {isMutateError && <Feedback type="error" message={error?.message ?? 'Save failed'} />}
-
-        {/* Error loading */}
         {isError && (
           <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '14px 18px', marginBottom: 20 }}>
             <span style={{ fontSize: 14, color: '#ef4444' }}>Failed to load settings</span>
           </div>
         )}
 
-        {/* Form card */}
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '8px 24px 24px' }}>
-          {isLoading || !localParams ? (
+        {/* Form */}
+        {isLoading || !localParams ? (
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '8px 24px 24px' }}>
             <SkeletonForm />
-          ) : (
-            <div>
-              {Object.entries(localParams).map(([key, val]) => (
-                <ParamField
-                  key={key}
-                  paramKey={key}
-                  value={val}
-                  onChange={v => handleChange(key, v)}
-                />
-              ))}
-            </div>
-          )}
+          </div>
+        ) : (
+          <>
+            {GROUPS.map(group => {
+              const fields = FIELD_DEFS.filter(f => f.group === group && f.key in localParams)
+              if (fields.length === 0) return null
+              return (
+                <div key={group} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '8px 24px 4px', marginBottom: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '14px 0 4px' }}>
+                    {group}
+                  </p>
+                  {fields.map(def => (
+                    <ParamField
+                      key={def.key}
+                      def={def}
+                      value={localParams[def.key]}
+                      onChange={v => handleChange(def.key, v)}
+                    />
+                  ))}
+                </div>
+              )
+            })}
 
-          {/* Actions */}
-          {!isLoading && localParams && (
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
+            {/* Unknown params (not in FIELD_DEFS) */}
+            {(() => {
+              const known = new Set(FIELD_DEFS.map(f => f.key))
+              const extra = Object.entries(localParams).filter(([k]) => !known.has(k))
+              if (extra.length === 0) return null
+              return (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '8px 24px 4px', marginBottom: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '14px 0 4px' }}>Other</p>
+                  {extra.map(([key, val]) => (
+                    <ParamField
+                      key={key}
+                      def={{ key, label: key, group: 'Other', type: typeof val === 'boolean' ? 'boolean' : typeof val === 'number' ? 'number' : 'text' }}
+                      value={val}
+                      onChange={v => handleChange(key, v)}
+                    />
+                  ))}
+                </div>
+              )
+            })()}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
               {isDirty && (
                 <button
                   onClick={handleReset}
-                  style={{
-                    fontSize: 13, fontWeight: 500, color: 'var(--text-muted)',
-                    background: 'none', border: '1px solid var(--border)',
-                    borderRadius: 7, padding: '9px 18px', cursor: 'pointer',
-                    transition: 'border-color 150ms',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-line)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                  style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '9px 18px', cursor: 'pointer' }}
                 >
                   Discard
                 </button>
@@ -280,32 +313,20 @@ export default function SettingsPage() {
                   fontSize: 13, fontWeight: 600,
                   background: isPending || !isDirty ? 'var(--surface-2)' : 'var(--accent)',
                   color: isPending || !isDirty ? 'var(--text-faint)' : '#fff',
-                  border: 'none', borderRadius: 7,
-                  padding: '9px 22px', cursor: isPending || !isDirty ? 'not-allowed' : 'pointer',
-                  transition: 'background 150ms, transform 150ms',
+                  border: 'none', borderRadius: 7, padding: '9px 22px',
+                  cursor: isPending || !isDirty ? 'not-allowed' : 'pointer',
                 }}
-                onMouseEnter={e => { if (!isPending && isDirty) e.currentTarget.style.transform = 'translateY(-1px)' }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}
               >
-                {isPending ? (
+                {isPending ? 'Saving…' : (
                   <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin-slow 0.8s linear infinite' }}>
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    Saving…
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
                     Save
                   </>
                 )}
               </button>
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </main>
   )
