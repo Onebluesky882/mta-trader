@@ -1,9 +1,12 @@
-name = "all-tp-bot"
+name = "all-tp-bot-web"
+main = ".open-next/worker.js"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-main = ".open-next/worker.js"
-
 [assets]
 directory = ".open-next/assets"
-binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mta-trader-db"
+database_id = "4f36a5f5-3d8b-4477-a129-d6be5c240d0f"
