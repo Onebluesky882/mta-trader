@@ -60,7 +60,7 @@ export default function LoginPage() {
             fontSize: 11, color: 'var(--accent)', letterSpacing: '0.1em',
             textTransform: 'uppercase', fontWeight: 600, marginBottom: 12,
           }}>
-            mta-trader
+            All Tp Bot
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em' }}>Sign in</h1>
           <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>

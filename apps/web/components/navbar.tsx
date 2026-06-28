@@ -41,7 +41,7 @@ export function Navbar() {
         <div style={{ maxWidth: 960, margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Logo */}
           <Link href="/" style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.04em', color: 'var(--text)', textDecoration: 'none' }}>
-            mta-trader
+            All Tp Bot
           </Link>
 
           {/* Desktop nav */}

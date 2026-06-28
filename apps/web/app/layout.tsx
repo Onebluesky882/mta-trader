@@ -4,8 +4,8 @@ import { QueryProvider } from '@/providers/query-provider'
 import { Navbar } from '@/components/navbar'
 
 export const metadata: Metadata = {
-  title: 'MTA Trader',
-  description: 'MT5 Forex trading bot dashboard',
+  title: 'All Tp Bot',
+  description: 'Forex trading bot dashboard',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
