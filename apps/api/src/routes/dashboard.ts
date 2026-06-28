@@ -32,7 +32,7 @@ dashboardRouter.get('/', async (c) => {
     todayStart.setUTCHours(0, 0, 0, 0)
     const todayStr = todayStart.toISOString().slice(0, 10)
 
-    const [openRow, todayRow, totalsRow] = await Promise.all([
+    const [openRow, todayRow, totalsRow, botRow] = await Promise.all([
       // Count of open trades
       d1.first<{ count: number }>(
         'SELECT COUNT(*) as count FROM trades WHERE status = ?',
@@ -51,6 +51,10 @@ dashboardRouter.get('/', async (c) => {
           SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as wins
         FROM trades WHERE status = 'CLOSED'`
       ),
+      // Bot heartbeat status (stale after 5 minutes)
+      d1.first<{ status: string; last_seen: string }>(
+        "SELECT status, last_seen FROM bot_status WHERE id = 'singleton'"
+      ),
     ])
 
     const openTrades = openRow?.count ?? 0
@@ -60,8 +64,15 @@ dashboardRouter.get('/', async (c) => {
     const wins = totalsRow?.wins ?? 0
     const winRate = totalClosed > 0 ? wins / totalClosed : 0
 
+    let botStatus: 'RUNNING' | 'STOPPED' | 'ERROR' = 'STOPPED'
+    if (botRow) {
+      const lastSeen = new Date(botRow.last_seen).getTime()
+      const stale = Date.now() - lastSeen > 5 * 60 * 1000
+      botStatus = stale ? 'STOPPED' : (botRow.status as 'RUNNING' | 'STOPPED' | 'ERROR')
+    }
+
     return c.json({
-      botStatus: 'RUNNING' as 'RUNNING' | 'STOPPED' | 'ERROR',
+      botStatus,
       openTrades,
       todayPnL,
       totalPnL,

@@ -43,6 +43,7 @@ beforeEach(() => {
     .mockResolvedValueOnce({ count: 3 })           // open trades
     .mockResolvedValueOnce({ todayPnL: 150.5 })    // today PnL
     .mockResolvedValueOnce({ totalPnL: 500, totalClosed: 10, wins: 7 }) // totals
+    .mockResolvedValueOnce({ status: 'RUNNING', last_seen: new Date().toISOString() }) // bot_status
 })
 
 describe('GET /api/dashboard', () => {

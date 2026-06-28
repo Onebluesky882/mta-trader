@@ -16,6 +16,7 @@ import { dashboardRouter } from './routes/dashboard'
 import { tradesRouter } from './routes/trades'
 import { settingsRouter } from './routes/settings'
 import { optimizeRouter } from './routes/optimize'
+import { mt5Router } from './routes/mt5'
 
 type Bindings = {
   DB: D1Database
@@ -29,6 +30,7 @@ type Bindings = {
   STRIPE_SECRET_KEY: string
   STRIPE_PUBLISHABLE_KEY: string
   STRIPE_WEBHOOK_SECRET: string
+  MT5_WEBHOOK_SECRET: string
   ANTHROPIC_API_KEY: string
   ANTHROPIC_AGENT_ID: string
   ANTHROPIC_ENV_ID: string
@@ -65,5 +67,6 @@ app.route('/api/dashboard', dashboardRouter)
 app.route('/api/trades', tradesRouter)
 app.route('/api/settings', settingsRouter)
 app.route('/api/optimize', optimizeRouter)
+app.route('/api/mt5', mt5Router)
 
 export default app

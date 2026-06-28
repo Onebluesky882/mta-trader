@@ -3,7 +3,7 @@
 **Stage ID:** stage-8-mt5-bridge
 **Domain:** apps/api
 **Branch:** stage-8-mt5-bridge
-**Gate-In Verified:** NO
+**Gate-In Verified:** YES
 
 ---
 

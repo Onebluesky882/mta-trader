@@ -95,3 +95,10 @@ CREATE TABLE IF NOT EXISTS optimize_snapshots (
   label TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- mta-trader: bot_status (singleton row — upserted by MT5 heartbeat)
+CREATE TABLE IF NOT EXISTS bot_status (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  last_seen TEXT NOT NULL
+);
