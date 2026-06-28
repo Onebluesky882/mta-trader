@@ -44,7 +44,7 @@ telegramRouter.post('/telegram', async (c) => {
 
   if (text === '/start' || text === '/help') {
     await send(c.env.BOT_TOKEN, chatId,
-      `*MTA Trader Bot* 🤖\n\n` +
+      `*All TP Bot* 🤖\n\n` +
       `Commands:\n` +
       `/status — สถานะ bot และ P\\&L\n` +
       `/trades — จำนวน trade ที่เปิดอยู่\n` +
