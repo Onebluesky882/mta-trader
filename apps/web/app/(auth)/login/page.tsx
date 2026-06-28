@@ -2,32 +2,22 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAppStore } from '@/store/useAppStore'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { setToken } = useAppStore()
+  const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const API = process.env.NEXT_PUBLIC_API_URL ?? ''
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Invalid credentials')
-      setToken(data.token)
-      router.push('/')
+      await signIn(email, password)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -54,7 +44,6 @@ export default function LoginPage() {
       minHeight: 'calc(100vh - 56px)', padding: '24px',
     }}>
       <div className="anim-fade-up" style={{ width: '100%', maxWidth: 400 }}>
-        {/* Header */}
         <div style={{ marginBottom: 36, textAlign: 'center' }}>
           <p style={{
             fontSize: 11, color: 'var(--accent)', letterSpacing: '0.1em',
@@ -123,6 +112,16 @@ export default function LoginPage() {
           >
             {isLoading ? 'Signing in...' : 'Sign in'}
           </button>
+
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
+            {"Don't have an account? "}
+            <span
+              style={{ color: 'var(--accent)', cursor: 'pointer', fontWeight: 500 }}
+              onClick={() => router.push('/register')}
+            >
+              Create account
+            </span>
+          </p>
         </form>
       </div>
     </main>

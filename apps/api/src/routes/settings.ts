@@ -3,7 +3,7 @@ import { createAuth, authMiddleware } from '@gover-agent/auth'
 import { createDb } from '@gover-agent/db'
 import { createD1Client } from '../db/client'
 
-type Bindings = { DB: D1Database }
+type Bindings = { DB: D1Database; MT5_WEBHOOK_SECRET: string }
 
 const TRUSTED_ORIGINS = [
   'http://localhost:3000',
@@ -19,18 +19,54 @@ interface SettingsRow {
 }
 
 const DEFAULT_PARAMS = {
+  symbol: 'EURUSD',
+  direction: 'BUY',      // BUY | SELL | BOTH
+  maxTrades: 1,          // max concurrent open positions per round
+  lotSize: 0.01,
+  stopLoss: 50,          // pips
+  takeProfit: 100,       // pips
   rsiPeriod: 14,
   macdFast: 12,
   macdSlow: 26,
   macdSignal: 9,
-  lotSize: 0.01,
-  stopLoss: 50,
-  takeProfit: 100,
 }
 
 const settingsRouter = new Hono<{ Bindings: Bindings }>()
 
-// Apply auth middleware to all settings routes
+/**
+ * GET /api/settings/active
+ * For MT5 EA — authenticated with X-MT5-Secret (no user login needed)
+ * Returns: { version, params }
+ */
+settingsRouter.get('/active', async (c) => {
+  const secret = c.req.header('X-MT5-Secret')
+  if (!secret || secret !== c.env.MT5_WEBHOOK_SECRET) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  try {
+    const d1 = createD1Client(c.env.DB)
+    let row = await d1.first<SettingsRow>(
+      'SELECT * FROM algorithm_settings ORDER BY version DESC LIMIT 1'
+    )
+    if (!row) {
+      const id = crypto.randomUUID()
+      const now = new Date().toISOString()
+      await d1.run(
+        'INSERT INTO algorithm_settings (id, version, params, updated_at) VALUES (?, ?, ?, ?)',
+        [id, 1, JSON.stringify(DEFAULT_PARAMS), now]
+      )
+      row = { id, version: 1, params: JSON.stringify(DEFAULT_PARAMS), updated_at: now }
+    }
+    return c.json({
+      version: row.version,
+      params: JSON.parse(row.params) as Record<string, number | string | boolean>,
+    })
+  } catch {
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+// Apply auth middleware to all other settings routes
 settingsRouter.use('*', async (c, next) => {
   const db = createDb(c.env.DB)
   const auth = createAuth(db, TRUSTED_ORIGINS)

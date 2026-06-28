@@ -10,6 +10,7 @@ type AuthStore = {
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   setLoading: (loading: boolean) => void
+  clearToken: () => void
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -21,6 +22,7 @@ export const useAuthStore = create<AuthStore>()(
       setUser: (user) => set({ user }),
       setToken: (token) => set({ token }),
       setLoading: (isLoading) => set({ isLoading }),
+      clearToken: () => set({ token: null, user: null }),
     }),
     {
       name: 'auth',

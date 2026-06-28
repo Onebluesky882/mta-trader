@@ -302,7 +302,7 @@ function SaveModal({ onClose, onSave, isPending }: {
 
 export default function OptimizePage() {
   const router = useRouter()
-  const { token } = useAppStore()
+  const { token, isLoading: authLoading } = useAppStore()
   const { data: versions, isLoading, isError, refetch } = useOptimize()
   const { data: settings } = useSettings()
   const { data: dashboard } = useDashboard()
@@ -312,9 +312,9 @@ export default function OptimizePage() {
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { if (!token) router.push('/login') }, [token, router])
+  useEffect(() => { if (authLoading) return; if (!token) router.push("/login") }, [token, authLoading, router])
 
-  if (!token) return null
+  if (authLoading || !token) return null
 
   const sorted = useMemo(
     () => (versions ? [...versions].sort((a, b) => b.result.totalProfit - a.result.totalProfit) : []),

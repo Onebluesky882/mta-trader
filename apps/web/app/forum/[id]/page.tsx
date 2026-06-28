@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Navbar } from '@/components/navbar'
 import { BackButton } from '@/components/back-button'
 import { uploadForumImage } from '@/hooks/use-image-upload'
 import { useAuthStore } from '@/store/auth.store'
@@ -193,7 +192,6 @@ export default function ForumPostPage() {
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', color: 'var(--text)' }}>
-      <Navbar />
 
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 24px' }}>
 

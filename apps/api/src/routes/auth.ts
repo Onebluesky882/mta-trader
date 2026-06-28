@@ -53,4 +53,51 @@ authRouter.post('/login', async (c) => {
   }
 })
 
+/**
+ * POST /api/auth/register
+ * Contract: { email, password, name? } → { token, expiresAt }
+ */
+authRouter.post('/register', async (c) => {
+  let body: { email?: unknown; password?: unknown; name?: unknown }
+
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
+  }
+
+  const { email, password, name } = body
+
+  if (typeof email !== 'string' || !email.trim()) {
+    return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
+  }
+  if (typeof password !== 'string' || password.length < 6) {
+    return c.json({ error: 'Password must be at least 6 characters', code: 'INVALID_PARAMS' }, 400)
+  }
+
+  try {
+    const db = createDb(c.env.DB)
+    const auth = createAuth(db, TRUSTED_ORIGINS, c.env.OWNER_EMAIL)
+
+    const result = await auth.api.signUpEmail({
+      body: {
+        email: email.trim(),
+        password,
+        name: typeof name === 'string' ? name : email.trim().split('@')[0],
+      },
+    })
+
+    const token = (result as unknown as { token?: string }).token ?? ''
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    return c.json({ token, expiresAt }, 201)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.toLowerCase().includes('exist') || msg.toLowerCase().includes('duplicate')) {
+      return c.json({ error: 'Email already in use', code: 'EMAIL_EXISTS' }, 409)
+    }
+    return c.json({ error: 'Registration failed', code: 'REGISTER_FAILED' }, 500)
+  }
+})
+
 export { authRouter as mtaAuthRouter }

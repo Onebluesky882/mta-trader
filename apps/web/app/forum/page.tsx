@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { Navbar } from '@/components/navbar'
 import { BackButton } from '@/components/back-button'
 import { uploadForumImage } from '@/hooks/use-image-upload'
 import { useApi } from '@/hooks/use-api'
@@ -171,7 +170,6 @@ export default function ForumPage() {
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', color: 'var(--text)', paddingBottom: 80 }}>
-      <Navbar />
 
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 24px' }}>
         <BackButton href="/" />

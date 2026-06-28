@@ -24,6 +24,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "@cloudflare/next-on-pages": "^1.13.16",
     "@gover-agent/config": "workspace:*",
     "@opennextjs/cloudflare": "latest",

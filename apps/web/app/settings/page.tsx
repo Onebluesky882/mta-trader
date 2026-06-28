@@ -159,7 +159,7 @@ function SkeletonForm() {
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { token } = useAppStore()
+  const { token, isLoading: authLoading } = useAppStore()
   const { data, isLoading, isError } = useSettings()
   const { mutate, isPending, isSuccess, isError: isMutateError, error, reset } = useUpdateSettings()
 
@@ -167,7 +167,7 @@ export default function SettingsPage() {
   const [isDirty, setIsDirty] = useState(false)
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { if (!token) router.push('/login') }, [token, router])
+  useEffect(() => { if (authLoading) return; if (!token) router.push("/login") }, [token, authLoading, router])
 
   // Initialise local form state from API once
   useEffect(() => {
@@ -185,7 +185,7 @@ export default function SettingsPage() {
     return () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current) }
   }, [isSuccess, isMutateError, reset])
 
-  if (!token) return null
+  if (authLoading || !token) return null
 
   function handleChange(key: string, value: ParamValue) {
     setLocalParams(prev => prev ? { ...prev, [key]: value } : prev)

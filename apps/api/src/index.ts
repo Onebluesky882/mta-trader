@@ -34,6 +34,7 @@ type Bindings = {
   MT5_WEBHOOK_SECRET: string
   BOT_TOKEN: string
   TELEGRAM_SECRET_TOKEN: string
+  TELEGRAM_CHAT_ID: string
   ANTHROPIC_API_KEY: string
   ANTHROPIC_AGENT_ID: string
   ANTHROPIC_ENV_ID: string
@@ -47,6 +48,7 @@ app.use('*', cors({
     'http://localhost:3001',
     'http://localhost:3002',
     'https://atp-bot-trader.pages.dev',
+    'https://all-tp-bot-web.onebluesky882.workers.dev',
   ],
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

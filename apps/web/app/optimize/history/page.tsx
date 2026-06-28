@@ -240,13 +240,13 @@ const TH: React.CSSProperties = {
 
 export default function HistoryPage() {
   const router = useRouter()
-  const { token } = useAppStore()
+  const { token, isLoading: authLoading } = useAppStore()
   const { data: snapshots, isLoading, isError, refetch } = useOptimize()
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  useEffect(() => { if (!token) router.push('/login') }, [token, router])
-  if (!token) return null
+  useEffect(() => { if (authLoading) return; if (!token) router.push("/login") }, [token, authLoading, router])
+  if (authLoading || !token) return null
 
   const displayOrder = useMemo(
     () => snapshots ? [...snapshots].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [],

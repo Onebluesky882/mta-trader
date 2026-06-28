@@ -186,15 +186,15 @@ const TH: React.CSSProperties = {
 
 export default function LogPage() {
   const router = useRouter()
-  const { token } = useAppStore()
+  const { token, isLoading: authLoading } = useAppStore()
   const [page, setPage] = useState(1)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
   const { data, isLoading, isError, refetch } = useTrades({ page, limit: PAGE_SIZE, from: from || undefined, to: to || undefined })
 
-  useEffect(() => { if (!token) router.push('/login') }, [token, router])
-  if (!token) return null
+  useEffect(() => { if (authLoading) return; if (!token) router.push("/login") }, [token, authLoading, router])
+  if (authLoading || !token) return null
 
   function handleFromChange(v: string) { setFrom(v); setPage(1) }
   function handleToChange(v: string) { setTo(v); setPage(1) }

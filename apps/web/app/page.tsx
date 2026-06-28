@@ -27,14 +27,15 @@ function SkeletonCard() {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { token } = useAppStore()
+  const { token, isLoading: authLoading } = useAppStore()
   const { data, isLoading, isError, refetch } = useDashboard()
 
   useEffect(() => {
+    if (authLoading) return
     if (!token) router.push('/login')
-  }, [token, router])
+  }, [token, authLoading, router])
 
-  if (!token) return null
+  if (authLoading || !token) return null
 
   const cards = data
     ? [

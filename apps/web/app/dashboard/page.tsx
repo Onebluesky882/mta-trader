@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth.store'
 import { useAuth } from '@/hooks/use-auth'
-import { Navbar } from '@/components/navbar'
 import { BackButton } from '@/components/back-button'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? ''
@@ -53,7 +52,6 @@ export default function DashboardPage() {
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', color: 'var(--text)' }}>
-      <Navbar />
 
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 24px 0' }}><BackButton href="/" /></div>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 24px' }}>

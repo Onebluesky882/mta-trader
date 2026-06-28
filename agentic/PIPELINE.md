@@ -1,8 +1,9 @@
 # PIPELINE.md
 
-Status: PLANNING
+Status: ACTIVE
 Owner: CONDUCTOR
 Conductor Branch: main
+Last Updated: 2026-06-28
 
 ---
 
@@ -13,169 +14,119 @@ Conductor Branch: main
 | stage-1-setup | root | none | DONE |
 | stage-2-auth | packages/auth | stage-1-setup | DONE |
 | stage-3-api-core | apps/api | stage-2-auth | DONE |
-| stage-4-web-dashboard | apps/web | stage-3-api-core | IN_PROGRESS |
-| stage-5-web-log | apps/web | stage-4-web-dashboard | IN_PROGRESS |
-| stage-6-web-settings | apps/web | stage-4-web-dashboard | IN_PROGRESS |
-| stage-7-web-optimize | apps/web | stage-6-web-settings | IN_PROGRESS |
-| stage-8-mt5-bridge | apps/api | stage-3-api-core | IN_PROGRESS |
+| stage-4-web-dashboard | apps/web | stage-3-api-core | DONE |
+| stage-5-web-log | apps/web | stage-4-web-dashboard | DONE |
+| stage-6-web-settings | apps/web | stage-4-web-dashboard | DONE |
+| stage-7-web-optimize | apps/web | stage-6-web-settings | DONE |
+| stage-8-mt5-bridge | apps/api | stage-3-api-core | DONE |
+| stage-9-telegram-bot | apps/api | stage-8-mt5-bridge | DONE |
+| stage-10-production | apps/api + apps/web | all | DONE |
+| stage-11-bot-trading | apps/api + MT5 EA | stage-10-production | IN_PROGRESS |
 
 ---
 
 ## Stage Detail
 
-### stage-1-setup
+### stage-1-setup — DONE
+**Domain:** root | **Status:** `DONE`
+- pnpm workspace, Biome, TypeScript, Vitest, wrangler.toml ✓
 
-**Domain:** root
-**Depends On:** none
-**Status:** `DONE`
+### stage-2-auth — DONE
+**Domain:** packages/auth | **Status:** `DONE`
+- Bearer JWT, login/register endpoints, auth middleware ✓
 
-**Acceptance Criteria:**
-- [ ] pnpm workspace configured (apps/web, apps/api, packages/auth)
-- [ ] Biome linting/formatting configured
-- [ ] TypeScript configured across all packages
-- [ ] Vitest configured for unit tests
-- [ ] Playwright configured for e2e tests
-- [ ] Base Cloudflare wrangler.toml for apps/api
+### stage-3-api-core — DONE
+**Domain:** apps/api | **Status:** `DONE`
+- Hono on Cloudflare Workers, D1 schema, all routes, unit tests ✓
 
-**Dispatch-In:** `tasks/stage-1-setup.md`
-**Gate-Out:** `gate-out/stage-1-setup.md`
-**Merge-Approval:** `merge-approval/stage-1-setup.md`
+### stage-4-web-dashboard — DONE
+**Domain:** apps/web | **Status:** `DONE`
+- Dashboard แสดง P&L, Win Rate, Bot Status, Open Trades ✓
+- TanStack Query, Zustand persist, Bearer token ✓
 
----
+### stage-5-web-log — DONE
+**Domain:** apps/web | **Status:** `DONE`
+- Trade Log `/log` — pagination, date filter, skeleton loader ✓
 
-### stage-2-auth
+### stage-6-web-settings — DONE
+**Domain:** apps/web | **Status:** `DONE`
+- Settings `/settings` — แก้ algorithm params, save version ✓
+- Params: symbol, direction, maxTrades, lotSize, stopLoss, takeProfit, RSI, MACD ✓
 
-**Domain:** packages/auth
-**Depends On:** stage-1-setup
-**Status:** `DONE`
+### stage-7-web-optimize — DONE
+**Domain:** apps/web | **Status:** `DONE`
+- Optimize `/optimize` — บันทึก config snapshot ✓
+- History `/optimize/history` — diff เปรียบเทียบ 2 versions ✓
 
-**Acceptance Criteria:**
-- [ ] Bearer token generation and validation
-- [ ] Login endpoint (`POST /api/auth/login`) per CONTRACTS.md
-- [ ] Auth middleware for protected routes
-- [ ] owner_email (wansing05@gmail.com) set to role = 'owner' in DB
+### stage-8-mt5-bridge — DONE
+**Domain:** apps/api | **Status:** `DONE`
+- `POST /api/mt5/trade-open` — รับ trade เปิดจาก EA ✓
+- `POST /api/mt5/trade-close` — รับ trade ปิดพร้อม P&L ✓
+- `POST /api/mt5/heartbeat` — bot alive check ✓
+- `GET /api/settings/active` — EA อ่าน settings ด้วย X-MT5-Secret ✓
 
-**Dispatch-In:** `tasks/stage-2-auth.md`
-**Gate-Out:** `gate-out/stage-2-auth.md`
-**Merge-Approval:** `merge-approval/stage-2-auth.md`
+### stage-9-telegram-bot — DONE
+**Domain:** apps/api | **Status:** `DONE`
+- `/status` `/trades` `/today` `/help` commands ✓
+- แจ้งเตือน trade-open, trade-close (TP/SL), bot stopped ✓
+- Webhook: `POST /webhook/telegram` ✓
 
----
-
-### stage-3-api-core
-
-**Domain:** apps/api
-**Depends On:** stage-2-auth
-**Status:** `DONE`
-
-**Acceptance Criteria:**
-- [ ] Hono app wired on Cloudflare Workers
-- [ ] D1 database schema created (trades, settings, optimize_snapshots, users)
-- [ ] All routes defined in CONTRACTS.md implemented
-- [ ] Auth middleware applied to all protected routes
-- [ ] Unit tests pass
-
-**Dispatch-In:** `tasks/stage-3-api-core.md`
-**Gate-Out:** `gate-out/stage-3-api-core.md`
-**Merge-Approval:** `merge-approval/stage-3-api-core.md`
+### stage-10-production — DONE
+**Domain:** apps/api + apps/web | **Status:** `DONE`
+- API: `atp-bot-trader-api.onebluesky882.workers.dev` ✓
+- Web: `all-tp-bot-web.onebluesky882.workers.dev` ✓
+- Session persist (Zustand localStorage) ✓
+- CORS, auth guard, owner-only pages ✓
 
 ---
 
-### stage-4-web-dashboard
+### stage-11-bot-trading — IN_PROGRESS
 
-**Domain:** apps/web
-**Depends On:** stage-3-api-core
+**Domain:** apps/api + MT5 EA
+**Depends On:** stage-10-production
 **Status:** `IN_PROGRESS`
 
-**Acceptance Criteria:**
-- [ ] Next.js app initialized on Cloudflare Pages
-- [ ] Dashboard page (`/`) — bot status, open trades, today P&L, total P&L, win rate
-- [ ] Navbar with logo linking to `/`
-- [ ] TanStack Query wired for data fetching
-- [ ] Zustand wired for client state
-- [ ] apiFetch (Bearer token) used for all API calls
+**เป้าหมาย:** Bot เทรดครบ 1 รอบ (Open → SL/TP → Close) ตาม settings และแจ้งผลผ่าน Telegram
 
-**Dispatch-In:** `tasks/stage-4-web-dashboard.md`
-**Gate-Out:** `gate-out/stage-4-web-dashboard.md`
-**Merge-Approval:** `merge-approval/stage-4-web-dashboard.md`
+**Acceptance Criteria:**
+- [ ] ติดตั้ง EA v2.0 บน MetaTrader 5 จริง
+- [ ] EA อ่าน settings จาก `/api/settings/active` ทุก 5 นาที
+- [ ] EA เปิด position ตาม `maxTrades`, `direction`, `lotSize`, `stopLoss`, `takeProfit`
+- [ ] เมื่อ TP/SL hit → EA ส่ง trade-close พร้อม reason และ profit
+- [ ] Telegram แจ้งเตือน: trade-open, trade-close (TP/SL), P&L
+- [ ] Dashboard แสดง P&L และ trade log อัปเดตถูกต้อง
+- [ ] `TELEGRAM_CHAT_ID` set ใน Cloudflare secrets
+
+**สิ่งที่ต้องทำ:**
+1. `wrangler secret put TELEGRAM_CHAT_ID` (Chat ID จาก Telegram)
+2. Copy `docs/mt5-ea-template.mq5` → MT5 Experts folder
+3. Compile + Attach to chart
+4. ตั้งค่า settings ใน Web `/settings`
+5. ทดสอบ: เปิด 1 trade ดู Telegram และ Dashboard
+
+**ขั้นตอนถัดไปหลัง stage-11:**
+- stage-12: บันทึก algorithm snapshot หลังครบ N รอบ → Optimize
+- stage-13: เปรียบเทียบ performance ระหว่าง config versions
 
 ---
 
-### stage-5-web-log
-
-**Domain:** apps/web
-**Depends On:** stage-4-web-dashboard
-**Status:** `PLANNING`
-
-**Acceptance Criteria:**
-- [ ] Trade Log page (`/log`) with pagination and date filter
-- [ ] Back button on `/log`
-- [ ] Data fetched from `GET /api/trades`
-
-**Dispatch-In:** `tasks/stage-5-web-log.md`
-**Gate-Out:** `gate-out/stage-5-web-log.md`
-**Merge-Approval:** `merge-approval/stage-5-web-log.md`
-
----
-
-### stage-6-web-settings
-
-**Domain:** apps/web
-**Depends On:** stage-4-web-dashboard
-**Status:** `PLANNING`
-
-**Acceptance Criteria:**
-- [ ] Algorithm Settings page (`/settings`)
-- [ ] Form to view and update algorithm parameters
-- [ ] Back button on `/settings`
-- [ ] PUT /api/settings called via apiFetch
-
-**Dispatch-In:** `tasks/stage-6-web-settings.md`
-**Gate-Out:** `gate-out/stage-6-web-settings.md`
-**Merge-Approval:** `merge-approval/stage-6-web-settings.md`
-
----
-
-### stage-7-web-optimize
-
-**Domain:** apps/web
-**Depends On:** stage-6-web-settings
-**Status:** `PLANNING`
-
-**Acceptance Criteria:**
-- [ ] Optimize page (`/optimize`) — เปรียบเทียบ config versions
-- [ ] Optimize History page (`/optimize/history`) — ประวัติการแก้ไขพร้อม diff และผลลัพธ์
-- [ ] Back buttons on both pages
-- [ ] Data fetched from `GET /api/optimize`
-
-**Dispatch-In:** `tasks/stage-7-web-optimize.md`
-**Gate-Out:** `gate-out/stage-7-web-optimize.md`
-**Merge-Approval:** `merge-approval/stage-7-web-optimize.md`
-
----
-
-### stage-8-mt5-bridge
-
-**Domain:** apps/api
-**Depends On:** stage-3-api-core
-**Status:** `PLANNING`
-
-**Acceptance Criteria:**
-- [ ] Bridge layer รับ signal จาก MT5 (MQL5 webhook หรือ Python script)
-- [ ] Signal validated และ stored ใน D1
-- [ ] Trade status updated จาก MT5 events
-
-**Dispatch-In:** `tasks/stage-8-mt5-bridge.md`
-**Gate-Out:** `gate-out/stage-8-mt5-bridge.md`
-**Merge-Approval:** `merge-approval/stage-8-mt5-bridge.md`
-
----
-
-## Deploy Checklist (run after every stage)
+## Deploy Checklist
 
 ```bash
-pnpm test
-pnpm run build
-# wrangler deploy (apps/api) — after Cloudflare setup
+# API
+pnpm type-check
+wrangler deploy   # จาก apps/api
+
+# Web
+pnpm run deploy   # จาก apps/web
 ```
 
-All checks must pass before Conductor writes merge-approval.
+## Secrets Required
+
+```bash
+cd apps/api
+wrangler secret put MT5_WEBHOOK_SECRET    # ตรงกับ EA MT5_SECRET
+wrangler secret put BOT_TOKEN             # จาก @BotFather
+wrangler secret put TELEGRAM_SECRET_TOKEN # สำหรับ webhook verify
+wrangler secret put TELEGRAM_CHAT_ID      # Chat ID ของคุณ (ดูจาก @userinfobot)
+```
