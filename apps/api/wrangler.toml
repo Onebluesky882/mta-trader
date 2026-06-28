@@ -22,4 +22,4 @@ GITHUB_TEMPLATE_REPO = ""
 [[d1_databases]]
 binding = "DB"
 database_name = "mta-trader-db"
-database_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+database_id = "4f36a5f5-3d8b-4477-a129-d6be5c240d0f"
