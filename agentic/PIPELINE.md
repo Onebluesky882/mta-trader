@@ -10,10 +10,10 @@ Conductor Branch: main
 
 | Stage | Domain | Depends On | Status |
 |-------|--------|------------|--------|
-| stage-1-setup | root | none | PLANNING |
-| stage-2-auth | packages/auth | stage-1-setup | PLANNING |
-| stage-3-api-core | apps/api | stage-2-auth | PLANNING |
-| stage-4-web-dashboard | apps/web | stage-3-api-core | PLANNING |
+| stage-1-setup | root | none | DONE |
+| stage-2-auth | packages/auth | stage-1-setup | DONE |
+| stage-3-api-core | apps/api | stage-2-auth | DONE |
+| stage-4-web-dashboard | apps/web | stage-3-api-core | IN_PROGRESS |
 | stage-5-web-log | apps/web | stage-4-web-dashboard | PLANNING |
 | stage-6-web-settings | apps/web | stage-4-web-dashboard | PLANNING |
 | stage-7-web-optimize | apps/web | stage-6-web-settings | PLANNING |
@@ -27,7 +27,7 @@ Conductor Branch: main
 
 **Domain:** root
 **Depends On:** none
-**Status:** `PLANNING`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
 - [ ] pnpm workspace configured (apps/web, apps/api, packages/auth)
@@ -47,7 +47,7 @@ Conductor Branch: main
 
 **Domain:** packages/auth
 **Depends On:** stage-1-setup
-**Status:** `PLANNING`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
 - [ ] Bearer token generation and validation
@@ -65,7 +65,7 @@ Conductor Branch: main
 
 **Domain:** apps/api
 **Depends On:** stage-2-auth
-**Status:** `PLANNING`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
 - [ ] Hono app wired on Cloudflare Workers
@@ -84,7 +84,7 @@ Conductor Branch: main
 
 **Domain:** apps/web
 **Depends On:** stage-3-api-core
-**Status:** `PLANNING`
+**Status:** `IN_PROGRESS`
 
 **Acceptance Criteria:**
 - [ ] Next.js app initialized on Cloudflare Pages

@@ -108,7 +108,7 @@ paymentRouter.post('/webhook', async (c) => {
     }
     const email = session.customer_email ?? session.customer_details?.email ?? ''
     if (email) {
-      const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2026-05-27.dahlia' })
+      const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2026-06-24.dahlia' })
       const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
         expand: ['line_items'],
       })

@@ -68,7 +68,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Template access */}
-        <div style={{ background: 'var(--surface)', border: `1px solid ${purchase?.purchased ? 'rgba(124,58,237,0.3)' : 'var(--border)'}`, borderRadius: 14, padding: '24px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: 0, right: 0, width: 200, height: 200, background: 'radial-gradient(ellipse at top right, rgba(124,58,237,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
           <p style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 10 }}>Your App</p>
           <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{process.env.NEXT_PUBLIC_APP_NAME ?? 'My App'}</h2>

@@ -7,6 +7,7 @@ type Bindings = { DB: D1Database; OWNER_EMAIL?: string }
 const TRUSTED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:3002',
 ]
 
 const authRouter = new Hono<{ Bindings: Bindings }>()

@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono'
-import type { Auth } from './auth'
+import type { Auth } from './better-auth'
 
 /**
  * Hono middleware that validates a Bearer token via better-auth.

@@ -1,7 +1,7 @@
 import Stripe from 'stripe'
 
 function createStripe(secretKey: string) {
-  return new Stripe(secretKey, { apiVersion: '2026-05-27.dahlia' })
+  return new Stripe(secretKey, { apiVersion: '2026-06-24.dahlia' })
 }
 
 export async function createPaymentIntent(
