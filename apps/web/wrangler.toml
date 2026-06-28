@@ -1,12 +1,9 @@
-name = "fullstack-builder-web"
-main = ".open-next/worker.js"
+name = "all-tp-bot"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
+main = ".open-next/worker.js"
+
 [assets]
 directory = ".open-next/assets"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "fullstack-builder-db"
-database_id = "965e371a-0158-4ecf-9653-d7ab2f6ef7ef"
+binding = "ASSETS"
