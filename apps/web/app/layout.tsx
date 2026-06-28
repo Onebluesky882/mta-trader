@@ -4,7 +4,7 @@ import { QueryProvider } from '@/providers/query-provider'
 import { Navbar } from '@/components/navbar'
 
 export const metadata: Metadata = {
-  title: 'All Tp Bot',
+  title: 'ATP Bot Trader',
   description: 'Forex trading bot dashboard',
 }
 

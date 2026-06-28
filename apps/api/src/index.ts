@@ -46,7 +46,7 @@ app.use('*', cors({
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:3002',
-    'https://all-tp-bot.pages.dev',
+    'https://atp-bot-trader.pages.dev',
   ],
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
