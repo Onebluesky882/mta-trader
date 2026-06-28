@@ -135,6 +135,9 @@ mt5Router.post('/trade-close', async (c) => {
       `Ticket: \`${ticket}\``
     )
 
+    // ── Stage 12: Auto-snapshot after completing a full round ──
+    await tryAutoSnapshot(d1, c.env)
+
     return c.json({ success: true })
   } catch {
     return c.json({ error: 'Internal server error', code: 'INTERNAL_ERROR' }, 500)
@@ -184,5 +187,81 @@ mt5Router.post('/heartbeat', async (c) => {
     return c.json({ error: 'Internal server error', code: 'INTERNAL_ERROR' }, 500)
   }
 })
+
+// ── Auto-snapshot helper ──────────────────────────────────────
+type D1Client = ReturnType<typeof createD1Client>
+
+async function tryAutoSnapshot(d1: D1Client, env: Bindings) {
+  try {
+    // Read current algorithm settings
+    const settingsRow = await d1.first<{ params: string; version: number }>(
+      "SELECT params, version FROM algorithm_settings WHERE id = 'singleton'"
+    )
+    if (!settingsRow) return
+
+    const params = JSON.parse(settingsRow.params) as Record<string, unknown>
+    const maxTrades = typeof params.maxTrades === 'number' && params.maxTrades > 0
+      ? params.maxTrades
+      : 1
+
+    // Count total closed trades
+    const countRow = await d1.first<{ count: number }>(
+      "SELECT COUNT(*) as count FROM trades WHERE status = 'CLOSED'"
+    )
+    if (!countRow || countRow.count === 0) return
+    if (countRow.count % maxTrades !== 0) return
+
+    // Compute performance metrics
+    const stats = await d1.first<{
+      total: number
+      wins: number
+      total_profit: number
+      min_profit: number
+    }>(
+      `SELECT
+         COUNT(*) as total,
+         SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as wins,
+         SUM(profit) as total_profit,
+         MIN(profit) as min_profit
+       FROM trades WHERE status = 'CLOSED'`
+    )
+    if (!stats) return
+
+    const winRate     = stats.total > 0 ? (stats.wins ?? 0) / stats.total : 0
+    const totalProfit = stats.total_profit ?? 0
+    const maxDrawdown = Math.abs(Math.min(stats.min_profit ?? 0, 0))
+
+    // Next snapshot version
+    const latest = await d1.first<{ version: number }>(
+      'SELECT version FROM optimize_snapshots ORDER BY version DESC LIMIT 1'
+    )
+    const nextVersion = latest ? latest.version + 1 : 1
+    const now = new Date().toISOString()
+
+    await d1.run(
+      'INSERT INTO optimize_snapshots (id, version, params, result, label, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        crypto.randomUUID(),
+        nextVersion,
+        settingsRow.params,
+        JSON.stringify({ totalTrades: stats.total, winRate, totalProfit, maxDrawdown, sharpeRatio: null }),
+        `Auto — v${settingsRow.version} · ${stats.total} trades`,
+        now,
+      ]
+    )
+
+    const sign = totalProfit >= 0 ? '+' : ''
+    await notify(env.BOT_TOKEN, env.TELEGRAM_CHAT_ID,
+      `📊 *Auto Snapshot Saved — Optimize v${nextVersion}*\n` +
+      `Trades: *${stats.total}*\n` +
+      `Win Rate: *${(winRate * 100).toFixed(1)}%*\n` +
+      `Total P&L: *${sign}${totalProfit.toFixed(2)} USD*\n` +
+      `Max Drawdown: \`${maxDrawdown.toFixed(2)} USD\`\n` +
+      `บันทึกอัตโนมัติหลังครบ ${stats.total} trades`
+    )
+  } catch {
+    // auto-snapshot failure must not break trade-close response
+  }
+}
 
 export { mt5Router }

@@ -22,6 +22,8 @@ Last Updated: 2026-06-28
 | stage-9-telegram-bot | apps/api | stage-8-mt5-bridge | DONE |
 | stage-10-production | apps/api + apps/web | all | DONE |
 | stage-11-bot-trading | apps/api + MT5 EA | stage-10-production | IN_PROGRESS |
+| stage-12-auto-snapshot | apps/api | stage-11-bot-trading | DONE |
+| stage-13-compare-versions | apps/web | stage-12-auto-snapshot | DONE |
 
 ---
 
@@ -104,9 +106,40 @@ Last Updated: 2026-06-28
 4. ตั้งค่า settings ใน Web `/settings`
 5. ทดสอบ: เปิด 1 trade ดู Telegram และ Dashboard
 
-**ขั้นตอนถัดไปหลัง stage-11:**
-- stage-12: บันทึก algorithm snapshot หลังครบ N รอบ → Optimize
-- stage-13: เปรียบเทียบ performance ระหว่าง config versions
+---
+
+### stage-12-auto-snapshot — DONE
+
+**Domain:** apps/api
+**Depends On:** stage-11-bot-trading
+**Status:** `DONE`
+
+**เป้าหมาย:** หลัง bot เทรดครบ N รอบ (N = `maxTrades`) → บันทึก optimize snapshot อัตโนมัติ + แจ้ง Telegram
+
+**Acceptance Criteria:**
+- [x] `trade-close` เรียก `tryAutoSnapshot()` ทุกครั้ง
+- [x] นับ CLOSED trades % `maxTrades` === 0 → trigger snapshot
+- [x] snapshot บันทึก params (settings version) + P&L stats (winRate, totalProfit, maxDrawdown)
+- [x] label = `Auto — v{settingsVersion} · {N} trades`
+- [x] Telegram แจ้งเตือน: Trade count, Win Rate, Total P&L, Max Drawdown
+- [x] ถ้า fail → ไม่กระทบ trade-close response (try/catch)
+
+---
+
+### stage-13-compare-versions — DONE
+
+**Domain:** apps/web
+**Depends On:** stage-12-auto-snapshot
+**Status:** `DONE`
+
+**เป้าหมาย:** เปรียบเทียบ algorithm config versions แบบ side-by-side พร้อมผลลัพธ์
+
+**Acceptance Criteria:**
+- [x] `/optimize` แสดง version cards พร้อม Best badge, P&L bar, params chips
+- [x] `/optimize/history` แสดง table — Win Rate, Profit, **Drawdown**, Date
+- [x] เลือก 2 versions → DiffView เปรียบเทียบ params ที่เปลี่ยน (highlight สีทอง→เขียว)
+- [x] Auto-snapshot info note บน Optimize page
+- [x] สี theme ตรงกับ neon green design system
 
 ---
 

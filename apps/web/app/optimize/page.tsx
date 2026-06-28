@@ -409,7 +409,7 @@ export default function OptimizePage() {
                     display: 'inline-flex', alignItems: 'center', gap: 8,
                     fontSize: 13, fontWeight: 600,
                     background: settings ? 'var(--accent)' : 'var(--surface-2)',
-                    color: settings ? '#fff' : 'var(--text-faint)',
+                    color: settings ? '#000' : 'var(--text-faint)',
                     border: 'none', borderRadius: 7, padding: '7px 16px', cursor: settings ? 'pointer' : 'not-allowed',
                     transition: 'background 150ms, transform 150ms',
                   }}
@@ -467,6 +467,19 @@ export default function OptimizePage() {
           )}
 
           {/* Cards */}
+          {/* Auto-snapshot note */}
+          {!isLoading && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              fontSize: 12, color: 'var(--text-faint)',
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 7, padding: '7px 14px', marginBottom: 24,
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Snapshot บันทึกอัตโนมัติทุกครั้งที่ bot ครบรอบ ({settings?.params?.maxTrades ?? '—'} trades)
+            </div>
+          )}
+
           {isLoading ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
               {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}

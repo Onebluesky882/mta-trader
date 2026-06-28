@@ -149,7 +149,7 @@ function SnapshotRow({ v, selectedIds, onToggle, selectionFull }: {
       onClick={() => { if (!isDisabled) onToggle(v.id) }}
       style={{
         display: 'grid',
-        gridTemplateColumns: '36px auto 1fr repeat(3, 100px) 140px',
+        gridTemplateColumns: '36px auto 1fr repeat(4, 90px) 130px',
         alignItems: 'center', gap: 12, padding: '14px 20px',
         borderTop: '1px solid var(--border-subtle)',
         cursor: isDisabled ? 'not-allowed' : 'pointer',
@@ -166,7 +166,7 @@ function SnapshotRow({ v, selectedIds, onToggle, selectionFull }: {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'border-color 150ms, background 150ms',
       }}>
-        {isSelected && <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{order}</span>}
+        {isSelected && <span style={{ fontSize: 11, fontWeight: 700, color: '#000' }}>{order}</span>}
       </div>
 
       {/* Version + label */}
@@ -194,13 +194,18 @@ function SnapshotRow({ v, selectedIds, onToggle, selectionFull }: {
       </div>
 
       {/* Win rate */}
-      <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', color: v.result.winRate >= 0.6 ? '#4cb87a' : v.result.winRate >= 0.45 ? '#f59e0b' : '#ef4444' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', color: v.result.winRate >= 0.6 ? 'var(--accent)' : v.result.winRate >= 0.45 ? '#f59e0b' : '#ef4444' }}>
         {pct(v.result.winRate)}
       </span>
 
       {/* Profit */}
-      <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', fontFamily: 'monospace', color: v.result.totalProfit >= 0 ? '#4cb87a' : '#ef4444' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', fontFamily: 'monospace', color: v.result.totalProfit >= 0 ? 'var(--accent)' : '#ef4444' }}>
         {fmtProfit(v.result.totalProfit)}
+      </span>
+
+      {/* Drawdown */}
+      <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', color: v.result.maxDrawdown <= 5 ? 'var(--accent)' : v.result.maxDrawdown <= 15 ? '#f59e0b' : '#ef4444' }}>
+        {v.result.maxDrawdown.toFixed(1)}%
       </span>
 
       {/* Date */}
@@ -216,7 +221,7 @@ function SnapshotRow({ v, selectedIds, onToggle, selectionFull }: {
 function SkeletonRow() {
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: '36px auto 1fr repeat(3, 100px) 140px',
+      display: 'grid', gridTemplateColumns: '36px auto 1fr repeat(4, 90px) 130px',
       gap: 12, padding: '14px 20px', borderTop: '1px solid var(--border-subtle)', alignItems: 'center',
     }}>
       <div style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--border)' }} />
@@ -327,7 +332,7 @@ export default function HistoryPage() {
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
           {/* Table header */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '36px auto 1fr repeat(3, 100px) 140px',
+            display: 'grid', gridTemplateColumns: '36px auto 1fr repeat(4, 90px) 130px',
             gap: 12, borderBottom: '1px solid var(--border)', alignItems: 'center',
           }}>
             <div style={TH} />
