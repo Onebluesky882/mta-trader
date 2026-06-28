@@ -16,7 +16,7 @@ Conductor Branch: main
 | stage-4-web-dashboard | apps/web | stage-3-api-core | IN_PROGRESS |
 | stage-5-web-log | apps/web | stage-4-web-dashboard | IN_PROGRESS |
 | stage-6-web-settings | apps/web | stage-4-web-dashboard | IN_PROGRESS |
-| stage-7-web-optimize | apps/web | stage-6-web-settings | PLANNING |
+| stage-7-web-optimize | apps/web | stage-6-web-settings | IN_PROGRESS |
 | stage-8-mt5-bridge | apps/api | stage-3-api-core | PLANNING |
 
 ---

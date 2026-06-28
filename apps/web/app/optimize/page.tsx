@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAppStore } from '@/store/useAppStore'
-import { useOptimize, type AlgorithmVersion } from '@/hooks/useOptimize'
+import { useOptimize, useSaveSnapshot, type AlgorithmVersion } from '@/hooks/useOptimize'
+import { useSettings } from '@/hooks/useSettings'
+import { useDashboard } from '@/hooks/useDashboard'
 import { BackButton } from '@/components/back-button'
 
 // ── helpers ──────────────────────────────────────────────────
@@ -233,16 +236,83 @@ function SummaryBar({ versions }: { versions: AlgorithmVersion[] }) {
   )
 }
 
+// ── Save modal ─────────────────────────────────────────────────
+
+function SaveModal({ onClose, onSave, isPending }: {
+  onClose: () => void
+  onSave: (label: string) => void
+  isPending: boolean
+}) {
+  const [label, setLabel] = useState('')
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 50,
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 24,
+    }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="anim-fade-up" style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 14, padding: '28px 28px 24px', width: '100%', maxWidth: 420,
+      }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 6 }}>Save Current Config</h2>
+        <p style={{ fontSize: 13, color: 'var(--text-faint)', marginBottom: 24, lineHeight: 1.5 }}>
+          Snapshot the active algorithm parameters and current P&L results as a new version.
+        </p>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          Label (optional)
+        </label>
+        <input
+          type="text"
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          placeholder="e.g. Conservative RSI 14"
+          maxLength={60}
+          autoFocus
+          onKeyDown={e => { if (e.key === 'Enter' && !isPending) onSave(label) }}
+          style={{
+            display: 'block', width: '100%', marginTop: 8, marginBottom: 24,
+            background: 'var(--surface-2)', border: '1px solid var(--border)',
+            borderRadius: 7, padding: '9px 12px', fontSize: 13, color: 'var(--text)',
+            outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{
+            fontSize: 13, fontWeight: 500, color: 'var(--text-muted)',
+            background: 'none', border: '1px solid var(--border)',
+            borderRadius: 7, padding: '9px 18px', cursor: 'pointer',
+          }}>Cancel</button>
+          <button onClick={() => onSave(label)} disabled={isPending} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            fontSize: 13, fontWeight: 600,
+            background: isPending ? 'var(--surface-2)' : 'var(--accent)',
+            color: isPending ? 'var(--text-faint)' : '#fff',
+            border: 'none', borderRadius: 7, padding: '9px 22px', cursor: isPending ? 'not-allowed' : 'pointer',
+          }}>
+            {isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────
 
 export default function OptimizePage() {
   const router = useRouter()
   const { token } = useAppStore()
   const { data: versions, isLoading, isError, refetch } = useOptimize()
+  const { data: settings } = useSettings()
+  const { data: dashboard } = useDashboard()
+  const { mutate: saveSnapshot, isPending: isSaving } = useSaveSnapshot()
 
-  useEffect(() => {
-    if (!token) router.push('/login')
-  }, [token, router])
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => { if (!token) router.push('/login') }, [token, router])
 
   if (!token) return null
 
@@ -250,17 +320,50 @@ export default function OptimizePage() {
     () => (versions ? [...versions].sort((a, b) => b.result.totalProfit - a.result.totalProfit) : []),
     [versions],
   )
-
   const bestId = sorted[0]?.id
   const maxProfit = sorted[0]?.result.totalProfit ?? 0
 
-  // Restore original creation order for display
   const displayOrder = useMemo(
     () => (versions ? [...versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : []),
     [versions],
   )
 
+  function handleSave(label: string) {
+    if (!settings) return
+    saveSnapshot(
+      {
+        params: settings.params as Record<string, number | string | boolean>,
+        result: {
+          totalTrades: 0,
+          winRate: dashboard?.winRate ?? 0,
+          totalProfit: dashboard?.totalPnL ?? 0,
+          maxDrawdown: 0,
+          sharpeRatio: null,
+        },
+        label: label.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          setShowSaveModal(false)
+          setSaveMsg({ type: 'success', text: 'Snapshot saved' })
+          if (msgTimer.current) clearTimeout(msgTimer.current)
+          msgTimer.current = setTimeout(() => setSaveMsg(null), 3000)
+        },
+        onError: (err) => {
+          setShowSaveModal(false)
+          setSaveMsg({ type: 'error', text: err.message })
+          if (msgTimer.current) clearTimeout(msgTimer.current)
+          msgTimer.current = setTimeout(() => setSaveMsg(null), 3000)
+        },
+      },
+    )
+  }
+
   return (
+    <>
+    {showSaveModal && (
+      <SaveModal onClose={() => setShowSaveModal(false)} onSave={handleSave} isPending={isSaving} />
+    )}
     <main style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)' }}>
       <div style={{ position: 'relative', overflow: 'hidden', minHeight: 'calc(100vh - 56px)' }}>
         {/* Dot grid */}
@@ -282,16 +385,63 @@ export default function OptimizePage() {
             <p style={{ fontSize: 11, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>
               Optimize
             </p>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <h1 style={{ fontSize: 'clamp(20px, 4vw, 30px)', fontWeight: 700, letterSpacing: '-0.03em' }}>
                 Algorithm Versions
               </h1>
-              {!isLoading && versions && versions.length > 0 && (
-                <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>
-                  {versions.length} version{versions.length !== 1 ? 's' : ''}
-                </span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Link href="/optimize/history" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 13, fontWeight: 500, color: 'var(--text-muted)',
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 7, padding: '7px 14px', textDecoration: 'none',
+                  transition: 'border-color 150ms, color 150ms',
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="10" />
+                  </svg>
+                  History
+                </Link>
+                <button
+                  onClick={() => setShowSaveModal(true)}
+                  disabled={!settings}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    fontSize: 13, fontWeight: 600,
+                    background: settings ? 'var(--accent)' : 'var(--surface-2)',
+                    color: settings ? '#fff' : 'var(--text-faint)',
+                    border: 'none', borderRadius: 7, padding: '7px 16px', cursor: settings ? 'pointer' : 'not-allowed',
+                    transition: 'background 150ms, transform 150ms',
+                  }}
+                  onMouseEnter={e => { if (settings) e.currentTarget.style.transform = 'translateY(-1px)' }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Save Current Config
+                </button>
+              </div>
             </div>
+            {/* Inline feedback */}
+            {saveMsg && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 12,
+                fontSize: 13, fontWeight: 500,
+                color: saveMsg.type === 'success' ? '#4cb87a' : '#ef4444',
+                background: saveMsg.type === 'success' ? 'rgba(76,184,122,0.08)' : 'rgba(239,68,68,0.08)',
+                border: `1px solid ${saveMsg.type === 'success' ? 'rgba(76,184,122,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                borderRadius: 7, padding: '6px 14px',
+              }}>
+                {saveMsg.type === 'success'
+                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                }
+                {saveMsg.text}
+              </div>
+            )}
           </div>
 
           {/* Error */}
@@ -355,5 +505,6 @@ export default function OptimizePage() {
         </div>
       </div>
     </main>
+    </>
   )
 }
