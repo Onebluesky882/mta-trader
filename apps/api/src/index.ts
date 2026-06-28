@@ -17,6 +17,7 @@ import { tradesRouter } from './routes/trades'
 import { settingsRouter } from './routes/settings'
 import { optimizeRouter } from './routes/optimize'
 import { mt5Router } from './routes/mt5'
+import { telegramRouter } from './routes/telegram'
 
 type Bindings = {
   DB: D1Database
@@ -31,6 +32,8 @@ type Bindings = {
   STRIPE_PUBLISHABLE_KEY: string
   STRIPE_WEBHOOK_SECRET: string
   MT5_WEBHOOK_SECRET: string
+  BOT_TOKEN: string
+  TELEGRAM_SECRET_TOKEN: string
   ANTHROPIC_API_KEY: string
   ANTHROPIC_AGENT_ID: string
   ANTHROPIC_ENV_ID: string
@@ -68,5 +71,6 @@ app.route('/api/trades', tradesRouter)
 app.route('/api/settings', settingsRouter)
 app.route('/api/optimize', optimizeRouter)
 app.route('/api/mt5', mt5Router)
+app.route('/webhook', telegramRouter)
 
 export default app
