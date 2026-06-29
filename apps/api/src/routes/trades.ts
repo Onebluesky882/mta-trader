@@ -34,27 +34,23 @@ tradesRouter.use('*', async (c, next) => {
 })
 
 tradesRouter.get('/', async (c) => {
-  const user = c.get('user') as { id: string }
-  const userId = user.id
-
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
   const limit = Math.min(200, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)))
   const from = c.req.query('from')
   const to = c.req.query('to')
 
-  if (isNaN(page)) return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
   if (from && isNaN(Date.parse(from))) return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
   if (to && isNaN(Date.parse(to))) return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
 
   try {
     const d1 = createD1Client(c.env.DB)
-    const conditions: string[] = ['user_id = ?']
-    const params: unknown[] = [userId]
+    const conditions: string[] = []
+    const params: unknown[] = []
 
     if (from) { conditions.push('open_time >= ?'); params.push(from) }
     if (to) { conditions.push('open_time <= ?'); params.push(to) }
 
-    const where = `WHERE ${conditions.join(' AND ')}`
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
     const offset = (page - 1) * limit
 
     const [countRow, rows] = await Promise.all([

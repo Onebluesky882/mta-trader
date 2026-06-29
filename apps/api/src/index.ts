@@ -20,7 +20,6 @@ import { mt5Router } from './routes/mt5'
 import { telegramRouter } from './routes/telegram'
 import { aiConfigRouter } from './routes/ai-config'
 import { aiSignalRouter } from './routes/ai-signal'
-import { accountRouter } from './routes/account'
 
 type Bindings = {
   DB: D1Database
@@ -39,6 +38,7 @@ type Bindings = {
   TELEGRAM_SECRET_TOKEN: string
   TELEGRAM_CHAT_ID: string
   ANTHROPIC_API_KEY: string
+  GROQ_API_KEY: string
   ANTHROPIC_AGENT_ID: string
   ANTHROPIC_ENV_ID: string
 }
@@ -79,6 +79,5 @@ app.route('/api/mt5', mt5Router)
 app.route('/webhook', telegramRouter)
 app.route('/api/ai-config', aiConfigRouter)
 app.route('/api/ai-signal', aiSignalRouter)
-app.route('/api/account', accountRouter)
 
 export default app

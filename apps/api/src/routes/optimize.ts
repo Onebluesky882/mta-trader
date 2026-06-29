@@ -19,7 +19,6 @@ interface SnapshotRow {
   result: string
   label: string | null
   created_at: string
-  user_id: string
 }
 
 interface OptimizeResult {
@@ -47,14 +46,11 @@ function rowToSnapshot(r: SnapshotRow) {
   }
 }
 
-// GET /api/optimize
 optimizeRouter.get('/', async (c) => {
-  const user = c.get('user') as { id: string }
-  const userId = user.id
   try {
     const d1 = createD1Client(c.env.DB)
     const rows = await d1.query<SnapshotRow>(
-      'SELECT * FROM optimize_snapshots WHERE user_id = ? ORDER BY created_at DESC', [userId]
+      'SELECT * FROM optimize_snapshots ORDER BY created_at DESC'
     )
     return c.json({ snapshots: rows.map(rowToSnapshot) })
   } catch {
@@ -62,10 +58,7 @@ optimizeRouter.get('/', async (c) => {
   }
 })
 
-// POST /api/optimize
 optimizeRouter.post('/', async (c) => {
-  const user = c.get('user') as { id: string }
-  const userId = user.id
   let body: { params?: unknown; result?: unknown; label?: unknown }
   try { body = await c.req.json() }
   catch { return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400) }
@@ -87,7 +80,7 @@ optimizeRouter.post('/', async (c) => {
   try {
     const d1 = createD1Client(c.env.DB)
     const latest = await d1.first<{ version: number }>(
-      'SELECT version FROM optimize_snapshots WHERE user_id = ? ORDER BY version DESC LIMIT 1', [userId]
+      'SELECT version FROM optimize_snapshots ORDER BY version DESC LIMIT 1'
     )
     const nextVersion = latest ? latest.version + 1 : 1
     const id = crypto.randomUUID()
@@ -95,10 +88,9 @@ optimizeRouter.post('/', async (c) => {
     const label = typeof body.label === 'string' ? body.label : null
 
     await d1.run(
-      'INSERT INTO optimize_snapshots (id, version, params, result, label, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, nextVersion, JSON.stringify(body.params), JSON.stringify(body.result), label, now, userId]
+      'INSERT INTO optimize_snapshots (id, version, params, result, label, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, nextVersion, JSON.stringify(body.params), JSON.stringify(body.result), label, now]
     )
-
     return c.json({ id, version: nextVersion, params: body.params, result: body.result, label, createdAt: now }, 201)
   } catch {
     return c.json({ error: 'Internal server error', code: 'INTERNAL_ERROR' }, 500)

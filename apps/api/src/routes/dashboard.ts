@@ -21,30 +21,25 @@ dashboardRouter.use('*', async (c, next) => {
 })
 
 dashboardRouter.get('/', async (c) => {
-  const user = c.get('user') as { id: string }
-  const userId = user.id
   try {
     const d1 = createD1Client(c.env.DB)
     const todayStr = new Date().toISOString().slice(0, 10)
 
     const [openRow, todayRow, totalsRow, botRow] = await Promise.all([
       d1.first<{ count: number }>(
-        'SELECT COUNT(*) as count FROM trades WHERE status = ? AND user_id = ?',
-        ['OPEN', userId]
+        "SELECT COUNT(*) as count FROM trades WHERE status = 'OPEN'"
       ),
       d1.first<{ todayPnL: number | null }>(
-        "SELECT SUM(profit) as todayPnL FROM trades WHERE status = 'CLOSED' AND close_time >= ? AND user_id = ?",
-        [todayStr, userId]
+        "SELECT SUM(profit) as todayPnL FROM trades WHERE status = 'CLOSED' AND close_time >= ?",
+        [todayStr]
       ),
       d1.first<{ totalPnL: number | null; totalClosed: number; wins: number }>(
         `SELECT SUM(profit) as totalPnL, COUNT(*) as totalClosed,
          SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as wins
-         FROM trades WHERE status = 'CLOSED' AND user_id = ?`,
-        [userId]
+         FROM trades WHERE status = 'CLOSED'`
       ),
       d1.first<{ status: string; last_seen: string }>(
-        'SELECT status, last_seen FROM bot_status WHERE user_id = ? ORDER BY last_seen DESC LIMIT 1',
-        [userId]
+        "SELECT status, last_seen FROM bot_status WHERE id = 'singleton'"
       ),
     ])
 

@@ -5,7 +5,8 @@ import { createD1Client } from '../db/client'
 
 type Bindings = {
   DB: D1Database
-  ANTHROPIC_API_KEY: string
+  MT5_WEBHOOK_SECRET: string
+  GROQ_API_KEY: string
 }
 type Variables = { user: { id: string; email: string } }
 
@@ -27,12 +28,11 @@ interface SignalRow {
   h4_analysis: string
   h1_analysis: string
   analyzed_at: string
-  user_id: string
 }
 
 type TFAnalysis = { trend: string; rsi: number; macd: string; ema: string }
 
-interface ClaudeSignal {
+interface GroqSignal {
   signal: 'BUY' | 'SELL' | 'HOLD'
   confidence: number
   reason: string
@@ -54,18 +54,8 @@ function rowToSignal(r: SignalRow) {
   }
 }
 
-async function callClaude(apiKey: string, prompt: string): Promise<ClaudeSignal> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
-      system: `You are a professional Forex technical analyst. Analyze market data and return a trading signal in JSON format only — no explanation outside JSON.
+async function callGroq(apiKey: string, prompt: string): Promise<GroqSignal> {
+  const systemPrompt = `You are a professional Forex technical analyst. Analyze market data and return a trading signal in JSON format only — no explanation outside JSON.
 
 Required JSON structure:
 {
@@ -76,18 +66,32 @@ Required JSON structure:
   "tp": <take profit price as number or null>,
   "h4": { "trend": "<string>", "rsi": <number>, "macd": "<string>", "ema": "<string>" },
   "h1": { "trend": "<string>", "rsi": <number>, "macd": "<string>", "ema": "<string>" }
-}`,
-      messages: [{ role: 'user', content: prompt }],
+}`
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 800,
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
     }),
   })
 
-  if (!res.ok) throw new Error(`Claude API error: ${res.status}`)
+  if (!res.ok) throw new Error(`Groq API error: ${res.status}`)
 
-  const data = await res.json() as { content: Array<{ type: string; text: string }> }
-  const text = data.content.find(b => b.type === 'text')?.text ?? '{}'
+  const data = await res.json() as { choices: Array<{ message: { content: string } }> }
+  const text = data.choices[0]?.message?.content ?? '{}'
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Claude returned no JSON')
-  return JSON.parse(jsonMatch[0]) as ClaudeSignal
+  if (!jsonMatch) throw new Error('Groq returned no JSON')
+  return JSON.parse(jsonMatch[0]) as GroqSignal
 }
 
 function buildPrompt(body: {
@@ -118,7 +122,7 @@ function buildPrompt(body: {
   }
 
   if (!body.h4Indicators && !body.h4Candles && !body.h1Indicators && !body.h1Candles) {
-    lines.push('\nNo real-time candle data provided — give a general technical outlook based on current market session.')
+    lines.push('\nNo real-time candle data — give a general technical outlook for this symbol.')
   }
 
   lines.push('\nProvide a trading signal with SL/TP levels based on this data.')
@@ -129,28 +133,16 @@ const aiSignalRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 // POST /api/ai-signal/analyze — EA (X-MT5-Secret) or web (Bearer)
 aiSignalRouter.post('/analyze', async (c) => {
-  const d1 = createD1Client(c.env.DB)
-  let userId: string | null = null
-
   const mtSecret = c.req.header('X-MT5-Secret')
-  if (mtSecret) {
-    const keyRow = await d1.first<{ user_id: string }>(
-      'SELECT user_id FROM user_api_keys WHERE api_key = ?', [mtSecret]
-    )
-    userId = keyRow?.user_id ?? null
-  }
+  const isMT5 = !!mtSecret && mtSecret === c.env.MT5_WEBHOOK_SECRET
 
-  if (!userId) {
-    // Try Bearer auth
+  if (!isMT5) {
     const db = createDb(c.env.DB)
     const auth = createAuth(db, TRUSTED_ORIGINS)
-    await authMiddleware(auth)(c, async () => {
-      const u = c.get('user')
-      if (u?.id) userId = u.id
-    })
+    let authed = false
+    await authMiddleware(auth)(c, async () => { authed = true })
+    if (!authed) return c.json({ error: 'Unauthorized' }, 401)
   }
-
-  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
 
   let body: { symbol?: unknown; currentPrice?: unknown; h4Candles?: unknown; h1Candles?: unknown; h4Indicators?: unknown; h1Indicators?: unknown }
   try { body = await c.req.json() }
@@ -168,26 +160,20 @@ aiSignalRouter.post('/analyze', async (c) => {
       h1Indicators: body.h1Indicators && typeof body.h1Indicators === 'object' ? body.h1Indicators as never : undefined,
     })
 
-    const result = await callClaude(c.env.ANTHROPIC_API_KEY, prompt)
+    const result = await callGroq(c.env.GROQ_API_KEY, prompt)
 
     if (!['BUY', 'SELL', 'HOLD'].includes(result.signal)) result.signal = 'HOLD'
     result.confidence = Math.max(0, Math.min(100, result.confidence ?? 50))
 
+    const d1 = createD1Client(c.env.DB)
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
     const price = typeof body.currentPrice === 'number' ? body.currentPrice : null
 
     await d1.run(
-      `INSERT INTO ai_signals (id, symbol, signal, confidence, reason, sl, tp, price, h4_analysis, h1_analysis, analyzed_at, user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id, body.symbol, result.signal, result.confidence,
-        result.reason ?? '',
-        result.sl ?? null, result.tp ?? null, price,
-        JSON.stringify(result.h4 ?? {}),
-        JSON.stringify(result.h1 ?? {}),
-        now, userId,
-      ]
+      `INSERT INTO ai_signals (id, symbol, signal, confidence, reason, sl, tp, price, h4_analysis, h1_analysis, analyzed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, body.symbol, result.signal, result.confidence, result.reason ?? '', result.sl ?? null, result.tp ?? null, price, JSON.stringify(result.h4 ?? {}), JSON.stringify(result.h1 ?? {}), now]
     )
 
     return c.json({ id, symbol: body.symbol, signal: result.signal, confidence: result.confidence, reason: result.reason, sl: result.sl, tp: result.tp, price, h4: result.h4, h1: result.h1, analyzedAt: now })
@@ -196,22 +182,16 @@ aiSignalRouter.post('/analyze', async (c) => {
   }
 })
 
-// Apply auth for remaining endpoints
 aiSignalRouter.use('*', async (c, next) => {
   const db = createDb(c.env.DB)
   const auth = createAuth(db, TRUSTED_ORIGINS)
   return authMiddleware(auth)(c, next)
 })
 
-// GET /api/ai-signal/latest
 aiSignalRouter.get('/latest', async (c) => {
-  const user = c.get('user') as { id: string }
-  const userId = user.id
   try {
     const d1 = createD1Client(c.env.DB)
-    const row = await d1.first<SignalRow>(
-      'SELECT * FROM ai_signals WHERE user_id = ? ORDER BY analyzed_at DESC LIMIT 1', [userId]
-    )
+    const row = await d1.first<SignalRow>('SELECT * FROM ai_signals ORDER BY analyzed_at DESC LIMIT 1')
     if (!row) return c.json({ signal: null })
     return c.json({ signal: rowToSignal(row) })
   } catch {
@@ -219,15 +199,10 @@ aiSignalRouter.get('/latest', async (c) => {
   }
 })
 
-// GET /api/ai-signal/history
 aiSignalRouter.get('/history', async (c) => {
-  const user = c.get('user') as { id: string }
-  const userId = user.id
   try {
     const d1 = createD1Client(c.env.DB)
-    const rows = await d1.query<SignalRow>(
-      'SELECT * FROM ai_signals WHERE user_id = ? ORDER BY analyzed_at DESC LIMIT 20', [userId]
-    )
+    const rows = await d1.query<SignalRow>('SELECT * FROM ai_signals ORDER BY analyzed_at DESC LIMIT 20')
     return c.json({ signals: rows.map(rowToSignal) })
   } catch {
     return c.json({ error: 'Internal server error' }, 500)
