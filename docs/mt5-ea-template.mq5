@@ -17,7 +17,10 @@ input string MT5_SECRET   = "";
 input int    MAGIC_NUMBER = 20240001;
 
 //--- Settings from API
-string g_symbol      = "EURUSD";
+// Falls back to _Symbol (the chart's own symbol) in OnInit() if FetchSettings()
+// hasn't succeeded yet — a hardcoded literal here would silently compute
+// zones/RSI against the wrong instrument whenever the very first fetch fails.
+string g_symbol      = "";
 string g_direction   = "BUY";
 int    g_maxTrades   = 1;
 double g_lotSize     = 0.01;
@@ -67,6 +70,7 @@ struct ZoneResult {
 
 //+------------------------------------------------------------------+
 int OnInit() {
+   g_symbol = _Symbol;
    g_trade.SetExpertMagicNumber(MAGIC_NUMBER);
    FetchSettings();
    FetchAiConfig();
