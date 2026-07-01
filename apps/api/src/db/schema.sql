@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- trades (multi-user)
+-- strategy_id: added to existing DBs via migrations/0001_trades_add_strategy_id.sql
+-- (kept here too so a fresh database gets it directly via CREATE TABLE)
 CREATE TABLE IF NOT EXISTS trades (
   id TEXT PRIMARY KEY,
   symbol TEXT NOT NULL,
@@ -20,7 +22,8 @@ CREATE TABLE IF NOT EXISTS trades (
   volume REAL NOT NULL,
   status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'CLOSED')),
   user_id TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  strategy_id TEXT REFERENCES strategy_config(id)
 );
 
 -- algorithm_settings (multi-user)
@@ -82,3 +85,16 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
   api_key TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- strategy_config — client-authored strategy text + AI-parsed trading rules
+CREATE TABLE IF NOT EXISTS strategy_config (
+  id TEXT PRIMARY KEY,
+  raw_text TEXT NOT NULL,
+  params TEXT NOT NULL,
+  is_active INTEGER NOT NULL DEFAULT 0,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_strategy_config_user ON strategy_config(user_id);
+CREATE INDEX IF NOT EXISTS idx_trades_strategy_id ON trades(strategy_id);

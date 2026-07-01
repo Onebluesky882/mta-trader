@@ -30,21 +30,42 @@ bool   g_aiEnabled     = false;
 int    g_confidenceMin = 70;
 double g_rrMin         = 1.5;
 
+//--- Strategy config from API (text-parsed by AI, applied by EA)
+bool   g_strategyEnabled   = false;
+string g_strategyId        = "";
+int    g_minWickTouches    = 3;
+int    g_lookbackBars      = 100;
+int    g_proximityPoints   = 20;
+string g_biasToday         = "MIXED";
+int    g_tpPoints          = 100;
+int    g_slPoints          = 50;
+
 datetime g_lastSettingsFetch = 0;
 datetime g_lastAiConfig      = 0;
+datetime g_lastStrategyFetch = 0;
 
 CTrade    g_trade;
 CDealInfo g_deal;
+
+struct ZoneResult {
+   bool   found;
+   double level;
+   double zoneMin;
+   double zoneMax;
+   int    touches;
+};
 
 //+------------------------------------------------------------------+
 int OnInit() {
    g_trade.SetExpertMagicNumber(MAGIC_NUMBER);
    FetchSettings();
    FetchAiConfig();
+   FetchStrategy();
    EventSetTimer(60);
    SendHeartbeat("RUNNING");
    Print("[ATP v3] Started AI:", (g_aiEnabled ? "ON" : "OFF"),
-         " MinConf:", g_confidenceMin, "%");
+         " MinConf:", g_confidenceMin, "%",
+         " Strategy:", (g_strategyEnabled ? g_strategyId : "none"));
    return INIT_SUCCEEDED;
 }
 
@@ -57,12 +78,18 @@ void OnTimer() {
    SendHeartbeat("RUNNING");
    if(TimeCurrent() - g_lastSettingsFetch >= 300) FetchSettings();
    if(TimeCurrent() - g_lastAiConfig      >= 300) FetchAiConfig();
+   if(TimeCurrent() - g_lastStrategyFetch >= 300) FetchStrategy();
 }
 
 //+------------------------------------------------------------------+
 void OnTick() {
    int openCount = CountOpenPositions();
    if(openCount >= g_maxTrades) return;
+
+   if(g_strategyEnabled) {
+      CheckStrategyEntry();
+      return;
+   }
 
    if(g_direction == "BUY" || g_direction == "BOTH") {
       if(CheckBuySignal()) {
@@ -74,6 +101,91 @@ void OnTick() {
          if(AiApproves("SELL")) OpenPosition(ORDER_TYPE_SELL);
       }
    }
+}
+
+//+------------------------------------------------------------------+
+// Text-strategy engine: EA finds the wick-cluster zone itself from real
+// H1 history and enters on config's bias/TP/SL - no AI call per tick.
+void CheckStrategyEntry() {
+   double ask = SymbolInfoDouble(g_symbol, SYMBOL_ASK);
+   double bid = SymbolInfoDouble(g_symbol, SYMBOL_BID);
+
+   if(g_biasToday == "BUY" || g_biasToday == "MIXED") {
+      ZoneResult zone = FindWickClusterZone(true);
+      if(zone.found && bid >= zone.zoneMin && bid <= zone.zoneMax) {
+         Print("[ATP] Demand zone hit @", zone.level, " touches:", zone.touches, " -> BUY");
+         OpenStrategyPosition(ORDER_TYPE_BUY);
+         return;
+      }
+   }
+   if(g_biasToday == "SELL" || g_biasToday == "MIXED") {
+      ZoneResult zone = FindWickClusterZone(false);
+      if(zone.found && ask >= zone.zoneMin && ask <= zone.zoneMax) {
+         Print("[ATP] Supply zone hit @", zone.level, " touches:", zone.touches, " -> SELL");
+         OpenStrategyPosition(ORDER_TYPE_SELL);
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+// demand=true -> cluster candle lows (support/demand zone for BUY)
+// demand=false -> cluster candle highs (resistance/supply zone for SELL)
+ZoneResult FindWickClusterZone(bool demand) {
+   ZoneResult result;
+   result.found = false; result.touches = 0;
+   result.level = 0; result.zoneMin = 0; result.zoneMax = 0;
+
+   double point     = SymbolInfoDouble(g_symbol, SYMBOL_POINT);
+   double tolerance = g_proximityPoints * point;
+
+   double prices[];
+   int copied = demand
+      ? CopyLow(g_symbol, PERIOD_H1, 1, g_lookbackBars, prices)
+      : CopyHigh(g_symbol, PERIOD_H1, 1, g_lookbackBars, prices);
+   if(copied < g_minWickTouches) return result;
+
+   int    bestTouches = 0;
+   double bestSum      = 0;
+   for(int i = 0; i < copied; i++) {
+      int    touches = 0;
+      double sum     = 0;
+      for(int j = 0; j < copied; j++) {
+         if(MathAbs(prices[j] - prices[i]) <= tolerance) { touches++; sum += prices[j]; }
+      }
+      if(touches > bestTouches) { bestTouches = touches; bestSum = sum; }
+   }
+
+   if(bestTouches < g_minWickTouches) return result;
+
+   result.found   = true;
+   result.touches = bestTouches;
+   result.level   = bestSum / bestTouches;
+   result.zoneMin = result.level - tolerance;
+   result.zoneMax = result.level + tolerance;
+   return result;
+}
+
+//+------------------------------------------------------------------+
+void OpenStrategyPosition(ENUM_ORDER_TYPE type) {
+   double point  = SymbolInfoDouble(g_symbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(g_symbol, SYMBOL_DIGITS);
+   double ask    = SymbolInfoDouble(g_symbol, SYMBOL_ASK);
+   double bid    = SymbolInfoDouble(g_symbol, SYMBOL_BID);
+   double price, sl, tp;
+
+   if(type == ORDER_TYPE_BUY) {
+      price = ask;
+      sl = NormalizeDouble(price - g_slPoints * point, digits);
+      tp = NormalizeDouble(price + g_tpPoints * point, digits);
+   } else {
+      price = bid;
+      sl = NormalizeDouble(price + g_slPoints * point, digits);
+      tp = NormalizeDouble(price - g_tpPoints * point, digits);
+   }
+
+   bool ok = g_trade.PositionOpen(g_symbol, type, g_lotSize, price, sl, tp,
+                                   "STRAT:" + g_strategyId);
+   if(!ok) Print("[ATP] Strategy open failed: ", g_trade.ResultRetcodeDescription());
 }
 
 //+------------------------------------------------------------------+
@@ -130,12 +242,15 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
    if(g_deal.Magic() != MAGIC_NUMBER)           return;
 
    if(g_deal.Entry() == DEAL_ENTRY_IN) {
-      string dir = (g_deal.DealType() == DEAL_TYPE_BUY) ? "BUY" : "SELL";
+      string dir     = (g_deal.DealType() == DEAL_TYPE_BUY) ? "BUY" : "SELL";
+      string comment = g_deal.Comment();
+      string stratId = (StringFind(comment, "STRAT:") == 0) ? StringSubstr(comment, 6) : "";
       SendTradeOpen(
          (long)g_deal.PositionId(),
          g_deal.Symbol(), dir,
          g_deal.Price(), g_deal.Volume(),
-         TimeToString(g_deal.Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS)
+         TimeToString(g_deal.Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+         stratId
       );
    }
    else if(g_deal.Entry() == DEAL_ENTRY_OUT) {
@@ -269,15 +384,57 @@ void FetchAiConfig() {
 }
 
 //+------------------------------------------------------------------+
+void FetchStrategy() {
+   string headers = "X-MT5-Secret: " + MT5_SECRET + "\r\n";
+   char req[], resp[];
+   string respHeaders;
+   int status = WebRequest("GET", API_URL + "/api/strategy/active",
+                           headers, 5000, req, resp, respHeaders);
+   if(status != 200) { Print("[ATP] FetchStrategy failed HTTP:", status); return; }
+
+   string json = CharArrayToString(resp);
+   if(StringFind(json, "\"strategy\":null") >= 0) {
+      g_strategyEnabled = false;
+      g_lastStrategyFetch = TimeCurrent();
+      return;
+   }
+
+   string strategyJson = JsonGetObject(json, "strategy");
+   string id           = JsonGetString(strategyJson, "id");
+   string paramsJson   = JsonGetObject(strategyJson, "params");
+   if(id == "" || paramsJson == "{}") {
+      g_strategyEnabled = false;
+      g_lastStrategyFetch = TimeCurrent();
+      return;
+   }
+
+   g_strategyId      = id;
+   int wt = (int)JsonGetNumber(paramsJson, "minWickTouches");  if(wt > 0) g_minWickTouches  = wt;
+   int lb = (int)JsonGetNumber(paramsJson, "lookbackBars");    if(lb > 0) g_lookbackBars    = lb;
+   int px = (int)JsonGetNumber(paramsJson, "proximityPoints"); if(px > 0) g_proximityPoints = px;
+   string bias = JsonGetString(paramsJson, "biasToday");       if(bias != "") g_biasToday   = bias;
+   int tp = (int)JsonGetNumber(paramsJson, "tpPoints");        if(tp > 0) g_tpPoints        = tp;
+   int sl = (int)JsonGetNumber(paramsJson, "slPoints");        if(sl > 0) g_slPoints        = sl;
+
+   g_strategyEnabled   = true;
+   g_lastStrategyFetch = TimeCurrent();
+   Print("[ATP] Strategy ", g_strategyId, " bias:", g_biasToday,
+         " minTouches:", g_minWickTouches, " lookback:", g_lookbackBars,
+         " proximity:", g_proximityPoints, " TP:", g_tpPoints, " SL:", g_slPoints);
+}
+
+//+------------------------------------------------------------------+
 void SendTradeOpen(long ticket, string symbol, string direction,
-                   double openPrice, double volume, string openTime) {
+                   double openPrice, double volume, string openTime, string strategyId) {
+   string strategyJson = (strategyId == "") ? "null" : ("\"" + strategyId + "\"");
    string body = StringFormat(
       "{\"ticket\":%d,\"symbol\":\"%s\",\"direction\":\"%s\","
-      "\"openPrice\":%.5f,\"volume\":%.2f,\"openTime\":\"%s\"}",
-      ticket, symbol, direction, openPrice, volume, openTime
+      "\"openPrice\":%.5f,\"volume\":%.2f,\"openTime\":\"%s\",\"strategyId\":%s}",
+      ticket, symbol, direction, openPrice, volume, openTime, strategyJson
    );
    PostToAPI("/api/mt5/trade-open", body);
-   Print("[ATP] trade-open #", ticket, " ", direction, " ", symbol, " @", openPrice);
+   Print("[ATP] trade-open #", ticket, " ", direction, " ", symbol, " @", openPrice,
+         (strategyId == "" ? "" : (" strategy:" + strategyId)));
 }
 
 //+------------------------------------------------------------------+

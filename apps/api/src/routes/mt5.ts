@@ -28,15 +28,16 @@ async function notify(token: string, chatId: string, text: string) {
 mt5Router.post('/trade-open', async (c) => {
   if (!authOk(c)) return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
 
-  let body: { ticket?: unknown; symbol?: unknown; direction?: unknown; openPrice?: unknown; volume?: unknown; openTime?: unknown }
+  let body: { ticket?: unknown; symbol?: unknown; direction?: unknown; openPrice?: unknown; volume?: unknown; openTime?: unknown; strategyId?: unknown }
   try { body = await c.req.json() }
   catch { return c.json({ error: 'Invalid JSON', code: 'INVALID_PARAMS' }, 400) }
 
-  const { ticket, symbol, direction, openPrice, volume, openTime } = body
+  const { ticket, symbol, direction, openPrice, volume, openTime, strategyId } = body
   if (
     typeof ticket !== 'number' || typeof symbol !== 'string' ||
     (direction !== 'BUY' && direction !== 'SELL') ||
-    typeof openPrice !== 'number' || typeof volume !== 'number' || typeof openTime !== 'string'
+    typeof openPrice !== 'number' || typeof volume !== 'number' || typeof openTime !== 'string' ||
+    (strategyId !== undefined && strategyId !== null && typeof strategyId !== 'string')
   ) {
     return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
   }
@@ -45,10 +46,10 @@ mt5Router.post('/trade-open', async (c) => {
     const d1 = createD1Client(c.env.DB)
     const id = String(ticket)
     await d1.run(
-      `INSERT INTO trades (id, symbol, direction, open_price, volume, open_time, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'OPEN')
+      `INSERT INTO trades (id, symbol, direction, open_price, volume, open_time, status, strategy_id)
+       VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?)
        ON CONFLICT(id) DO NOTHING`,
-      [id, symbol, direction, openPrice, volume, openTime]
+      [id, symbol, direction, openPrice, volume, openTime, strategyId ?? null]
     )
 
     const dirIcon = direction === 'BUY' ? '🟢' : '🔴'
