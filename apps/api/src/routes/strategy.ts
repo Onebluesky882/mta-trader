@@ -100,6 +100,9 @@ If the strategy only mentions one timeframe, return a single-item zones array. N
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
+      // Groq's edge (Cloudflare-fronted) has been seen 403-ing requests with no
+      // User-Agent — Workers' default fetch doesn't send one, so set it explicitly.
+      'User-Agent': 'atp-bot-trader/1.0',
     },
     body: JSON.stringify({
       // Cheapest/lightest Groq model — this is a low-volume, low-complexity
