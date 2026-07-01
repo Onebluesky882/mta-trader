@@ -46,17 +46,14 @@ function Feedback({ type, message }: { type: 'success' | 'error'; message: strin
 // ── Param chips ───────────────────────────────────────────────
 
 function ParamChips({ params }: { params: StrategyParams }) {
-  const chips: Array<[string, string]> = [
+  const summaryChips: Array<[string, string]> = [
     ['bias', params.biasToday],
-    ['tf', params.timeframe],
-    ['wick touches', String(params.minWickTouches)],
-    ['proximity', `${params.proximityPoints}pt`],
     ['TP', `${params.tpPoints}pt`],
     ['SL', `${params.slPoints}pt`],
   ]
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-      {chips.map(([k, v]) => (
+      {summaryChips.map(([k, v]) => (
         <span key={k} style={{
           fontSize: 10, fontWeight: 500, padding: '1px 6px', borderRadius: 3,
           background: 'var(--surface-2)', border: '1px solid var(--border)',
@@ -64,6 +61,16 @@ function ParamChips({ params }: { params: StrategyParams }) {
           whiteSpace: 'nowrap',
         }}>
           {k === 'bias' ? v : `${k}=${v}`}
+        </span>
+      ))}
+      {/* zones are pre-sorted biggest-timeframe-first by the backend (highest priority shown first) */}
+      {params.zones.map((z, i) => (
+        <span key={`${z.timeframe}-${i}`} style={{
+          fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
+          background: 'var(--accent-dim)', border: '1px solid var(--accent-line)',
+          color: 'var(--accent)', whiteSpace: 'nowrap',
+        }}>
+          {z.timeframe}: {z.minWickTouches} touches ±{z.proximityPoints}pt{z.includeBody ? ' +body' : ''}
         </span>
       ))}
     </div>
@@ -225,7 +232,7 @@ export default function StrategyPage() {
         </div>
 
         {isSuccess && created && (
-          <Feedback type="success" message={`บันทึกกลยุทธ์แล้ว — bias: ${created.params.biasToday}, wick touches: ${created.params.minWickTouches}`} />
+          <Feedback type="success" message={`บันทึกกลยุทธ์แล้ว — bias: ${created.params.biasToday}, ${created.params.zones.length} zone rule(s)`} />
         )}
         {isCreateError && <Feedback type="error" message={error?.message ?? 'Failed to parse strategy'} />}
 

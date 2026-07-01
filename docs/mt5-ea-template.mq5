@@ -33,10 +33,6 @@ double g_rrMin         = 1.5;
 //--- Strategy config from API (text-parsed by AI, applied by EA)
 bool   g_strategyEnabled   = false;
 string g_strategyId        = "";
-string g_timeframe         = "H1";
-int    g_minWickTouches    = 3;
-int    g_lookbackBars      = 100;
-int    g_proximityPoints   = 20;
 string g_biasToday         = "MIXED";
 int    g_tpPoints          = 100;
 int    g_slPoints          = 50;
@@ -47,6 +43,19 @@ datetime g_lastStrategyFetch = 0;
 
 CTrade    g_trade;
 CDealInfo g_deal;
+
+// One rule per timeframe the strategy watches (e.g. H4 + H1 + M30 at once).
+// The backend pre-sorts this array biggest-timeframe-first, so iterating it
+// top to bottom in CheckStrategyEntry() behaves exactly like an if/else-if
+// chain: the first (highest-priority) zone that matches wins.
+struct ZoneRule {
+   string timeframe;
+   int    minWickTouches;
+   int    lookbackBars;
+   int    proximityPoints;
+   bool   includeBody;
+};
+ZoneRule g_zones[];
 
 struct ZoneResult {
    bool   found;
@@ -106,24 +115,31 @@ void OnTick() {
 
 //+------------------------------------------------------------------+
 // Text-strategy engine: EA finds the wick-cluster zone itself from real
-// H1 history and enters on config's bias/TP/SL - no AI call per tick.
+// candle history and enters on config's bias/TP/SL - no AI call per tick.
+// g_zones is priority-ordered (biggest timeframe first), so this loop is
+// the dynamic-array equivalent of: if(H4 hit) ... else if(H1 hit) ... else if(M30 hit) ...
 void CheckStrategyEntry() {
    double ask = SymbolInfoDouble(g_symbol, SYMBOL_ASK);
    double bid = SymbolInfoDouble(g_symbol, SYMBOL_BID);
 
-   if(g_biasToday == "BUY" || g_biasToday == "MIXED") {
-      ZoneResult zone = FindWickClusterZone(true);
-      if(zone.found && bid >= zone.zoneMin && bid <= zone.zoneMax) {
-         Print("[ATP] Demand zone hit @", zone.level, " touches:", zone.touches, " -> BUY");
-         OpenStrategyPosition(ORDER_TYPE_BUY);
-         return;
+   for(int i = 0; i < ArraySize(g_zones); i++) {
+      if(g_biasToday == "BUY" || g_biasToday == "MIXED") {
+         ZoneResult zone = FindWickClusterZone(true, g_zones[i]);
+         if(zone.found && bid >= zone.zoneMin && bid <= zone.zoneMax) {
+            Print("[ATP] Demand zone hit (tf:", g_zones[i].timeframe, ") @", zone.level,
+                  " touches:", zone.touches, " -> BUY");
+            OpenStrategyPosition(ORDER_TYPE_BUY);
+            return;
+         }
       }
-   }
-   if(g_biasToday == "SELL" || g_biasToday == "MIXED") {
-      ZoneResult zone = FindWickClusterZone(false);
-      if(zone.found && ask >= zone.zoneMin && ask <= zone.zoneMax) {
-         Print("[ATP] Supply zone hit @", zone.level, " touches:", zone.touches, " -> SELL");
-         OpenStrategyPosition(ORDER_TYPE_SELL);
+      if(g_biasToday == "SELL" || g_biasToday == "MIXED") {
+         ZoneResult zone = FindWickClusterZone(false, g_zones[i]);
+         if(zone.found && ask >= zone.zoneMin && ask <= zone.zoneMax) {
+            Print("[ATP] Supply zone hit (tf:", g_zones[i].timeframe, ") @", zone.level,
+                  " touches:", zone.touches, " -> SELL");
+            OpenStrategyPosition(ORDER_TYPE_SELL);
+            return;
+         }
       }
    }
 }
@@ -143,20 +159,42 @@ ENUM_TIMEFRAMES TimeframeFromString(string tf) {
 //+------------------------------------------------------------------+
 // demand=true -> cluster candle lows (support/demand zone for BUY)
 // demand=false -> cluster candle highs (resistance/supply zone for SELL)
-ZoneResult FindWickClusterZone(bool demand) {
+// rule.includeBody -> also cluster on the body edge (open/close), not just
+// the wick tip, so a candle can join the cluster via either point.
+ZoneResult FindWickClusterZone(bool demand, ZoneRule &rule) {
    ZoneResult result;
    result.found = false; result.touches = 0;
    result.level = 0; result.zoneMin = 0; result.zoneMax = 0;
 
    double point     = SymbolInfoDouble(g_symbol, SYMBOL_POINT);
-   double tolerance = g_proximityPoints * point;
-   ENUM_TIMEFRAMES tf = TimeframeFromString(g_timeframe);
+   double tolerance = rule.proximityPoints * point;
+   ENUM_TIMEFRAMES tf = TimeframeFromString(rule.timeframe);
+
+   double wickPrices[];
+   int wickCount = demand
+      ? CopyLow(g_symbol, tf, 1, rule.lookbackBars, wickPrices)
+      : CopyHigh(g_symbol, tf, 1, rule.lookbackBars, wickPrices);
+   if(wickCount <= 0) return result;
 
    double prices[];
-   int copied = demand
-      ? CopyLow(g_symbol, tf, 1, g_lookbackBars, prices)
-      : CopyHigh(g_symbol, tf, 1, g_lookbackBars, prices);
-   if(copied < g_minWickTouches) return result;
+   int copied = wickCount;
+
+   if(rule.includeBody) {
+      double opens[], closes[];
+      int oCount = CopyOpen(g_symbol, tf, 1, rule.lookbackBars, opens);
+      int cCount = CopyClose(g_symbol, tf, 1, rule.lookbackBars, closes);
+      int bodyCount = MathMin(oCount, cCount);
+      copied = wickCount + bodyCount;
+      ArrayResize(prices, copied);
+      for(int i = 0; i < wickCount; i++) prices[i] = wickPrices[i];
+      for(int i = 0; i < bodyCount; i++)
+         prices[wickCount + i] = demand ? MathMin(opens[i], closes[i]) : MathMax(opens[i], closes[i]);
+   } else {
+      ArrayResize(prices, copied);
+      for(int i = 0; i < copied; i++) prices[i] = wickPrices[i];
+   }
+
+   if(copied < rule.minWickTouches) return result;
 
    int    bestTouches = 0;
    double bestSum      = 0;
@@ -169,7 +207,7 @@ ZoneResult FindWickClusterZone(bool demand) {
       if(touches > bestTouches) { bestTouches = touches; bestSum = sum; }
    }
 
-   if(bestTouches < g_minWickTouches) return result;
+   if(bestTouches < rule.minWickTouches) return result;
 
    result.found   = true;
    result.touches = bestTouches;
@@ -422,20 +460,37 @@ void FetchStrategy() {
       return;
    }
 
-   g_strategyId      = id;
-   string tf = JsonGetString(paramsJson, "timeframe");         if(tf != "") g_timeframe    = tf;
-   int wt = (int)JsonGetNumber(paramsJson, "minWickTouches");  if(wt > 0) g_minWickTouches  = wt;
-   int lb = (int)JsonGetNumber(paramsJson, "lookbackBars");    if(lb > 0) g_lookbackBars    = lb;
-   int px = (int)JsonGetNumber(paramsJson, "proximityPoints"); if(px > 0) g_proximityPoints = px;
+   g_strategyId = id;
+
+   string zonesRaw = JsonGetArrayRaw(paramsJson, "zones");
+   string zoneItems[];
+   int zoneCount = JsonSplitObjects(zonesRaw, zoneItems);
+   if(zoneCount > 0) {
+      ArrayResize(g_zones, zoneCount);
+      for(int i = 0; i < zoneCount; i++) {
+         g_zones[i].timeframe       = JsonGetString(zoneItems[i], "timeframe");
+         g_zones[i].minWickTouches  = (int)JsonGetNumber(zoneItems[i], "minWickTouches");
+         g_zones[i].lookbackBars    = (int)JsonGetNumber(zoneItems[i], "lookbackBars");
+         g_zones[i].proximityPoints = (int)JsonGetNumber(zoneItems[i], "proximityPoints");
+         g_zones[i].includeBody     = JsonGetBool(zoneItems[i], "includeBody");
+      }
+   }
+
    string bias = JsonGetString(paramsJson, "biasToday");       if(bias != "") g_biasToday   = bias;
    int tp = (int)JsonGetNumber(paramsJson, "tpPoints");        if(tp > 0) g_tpPoints        = tp;
    int sl = (int)JsonGetNumber(paramsJson, "slPoints");        if(sl > 0) g_slPoints        = sl;
 
    g_strategyEnabled   = true;
    g_lastStrategyFetch = TimeCurrent();
-   Print("[ATP] Strategy ", g_strategyId, " tf:", g_timeframe, " bias:", g_biasToday,
-         " minTouches:", g_minWickTouches, " lookback:", g_lookbackBars,
-         " proximity:", g_proximityPoints, " TP:", g_tpPoints, " SL:", g_slPoints);
+   Print("[ATP] Strategy ", g_strategyId, " zones:", ArraySize(g_zones), " bias:", g_biasToday,
+         " TP:", g_tpPoints, " SL:", g_slPoints);
+   for(int i = 0; i < ArraySize(g_zones); i++) {
+      Print("[ATP]   zone[", i, "] tf:", g_zones[i].timeframe,
+            " minTouches:", g_zones[i].minWickTouches,
+            " lookback:", g_zones[i].lookbackBars,
+            " proximity:", g_zones[i].proximityPoints,
+            " includeBody:", (g_zones[i].includeBody ? "YES" : "NO"));
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -540,4 +595,51 @@ string JsonGetObject(string json, string key) {
       i++;
    }
    return "{}";
+}
+
+bool JsonGetBool(string json, string key) {
+   return StringFind(json, "\"" + key + "\":true") >= 0;
+}
+
+// Extracts the raw "[...]" substring for an array-valued key, brace-matching
+// on [ / ] the same way JsonGetObject does for { / }.
+string JsonGetArrayRaw(string json, string key) {
+   string search = "\"" + key + "\":[";
+   int start = StringFind(json, search);
+   if(start < 0) return "[]";
+   start += StringLen(search) - 1;
+   int depth = 0, i = start;
+   while(i < StringLen(json)) {
+      ushort c = StringGetCharacter(json, i);
+      if(c == '[') depth++;
+      else if(c == ']') {
+         depth--;
+         if(depth == 0) return StringSubstr(json, start, i - start + 1);
+      }
+      i++;
+   }
+   return "[]";
+}
+
+// Splits a "[{...},{...}]" array string into its top-level object substrings.
+int JsonSplitObjects(string arrayJson, string &items[]) {
+   ArrayResize(items, 0);
+   int len = StringLen(arrayJson);
+   int depth = 0, objStart = -1, count = 0;
+   for(int i = 0; i < len; i++) {
+      ushort c = StringGetCharacter(arrayJson, i);
+      if(c == '{') {
+         if(depth == 0) objStart = i;
+         depth++;
+      } else if(c == '}') {
+         depth--;
+         if(depth == 0 && objStart >= 0) {
+            ArrayResize(items, count + 1);
+            items[count] = StringSubstr(arrayJson, objStart, i - objStart + 1);
+            count++;
+            objStart = -1;
+         }
+      }
+   }
+   return count;
 }

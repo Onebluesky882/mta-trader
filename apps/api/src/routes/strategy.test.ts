@@ -40,7 +40,7 @@ const SAMPLE_ROW = {
   id: 'abc123def456',
   raw_text: 'lower wick cluster at 4042, 5 touches, buy when price returns',
   params: JSON.stringify({
-    timeframe: 'M15', minWickTouches: 5, lookbackBars: 100, proximityPoints: 20,
+    zones: [{ timeframe: 'M15', minWickTouches: 5, lookbackBars: 100, proximityPoints: 20, includeBody: false }],
     biasToday: 'BUY', tpPoints: 300, slPoints: 150,
   }),
   is_active: 1,
@@ -87,10 +87,11 @@ describe('GET /active', () => {
     mockFirst.mockResolvedValue(SAMPLE_ROW)
     const res = await strategyRouter.request('/active', { headers: { 'X-MT5-Secret': 'test-secret' } }, MOCK_ENV)
     expect(res.status).toBe(200)
-    const body = await res.json() as { strategy: { id: string; params: { biasToday: string; minWickTouches: number } } }
+    const body = await res.json() as { strategy: { id: string; params: { biasToday: string; zones: Array<{ timeframe: string; minWickTouches: number }> } } }
     expect(body.strategy.id).toBe('abc123def456')
     expect(body.strategy.params.biasToday).toBe('BUY')
-    expect(body.strategy.params.minWickTouches).toBe(5)
+    expect(body.strategy.params.zones[0].timeframe).toBe('M15')
+    expect(body.strategy.params.zones[0].minWickTouches).toBe(5)
   })
 })
 
@@ -117,12 +118,12 @@ describe('POST /', () => {
     expect(res.status).toBe(400)
   })
 
-  it('parses strategy text via Groq and saves it', async () => {
+  it('parses a single zone rule via Groq and saves it', async () => {
     mockGetSession.mockResolvedValue({ user: mockUser })
     mockRun.mockResolvedValue(undefined)
 
     const groqPayload = {
-      timeframe: 'M30', minWickTouches: 5, lookbackBars: 100, proximityPoints: 20,
+      zones: [{ timeframe: 'M30', minWickTouches: 5, lookbackBars: 100, proximityPoints: 20, includeBody: false }],
       biasToday: 'BUY', tpPoints: 300, slPoints: 150,
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
@@ -144,7 +145,40 @@ describe('POST /', () => {
     expect(mockRun).toHaveBeenCalledOnce()
   })
 
-  it('falls back to defaults when Groq omits fields', async () => {
+  it('sorts multiple zone rules biggest-timeframe-first regardless of input order', async () => {
+    mockGetSession.mockResolvedValue({ user: mockUser })
+    mockRun.mockResolvedValue(undefined)
+
+    // Groq returns them out of order (M30, H4, H1) — response must be re-sorted.
+    const groqPayload = {
+      zones: [
+        { timeframe: 'M30', minWickTouches: 3, proximityPoints: 300, includeBody: true },
+        { timeframe: 'H4', minWickTouches: 1, proximityPoints: 20 },
+        { timeframe: 'H1', minWickTouches: 3, proximityPoints: 300 },
+      ],
+      biasToday: 'BUY', tpPoints: 1000, slPoints: 500,
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(groqPayload) } }],
+      }), { status: 200 })
+    ))
+
+    const res = await strategyRouter.request('/', authedReq('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawText: 'H4 1 wick is demand, H1 3 wicks within 300pt, M30 3 wicks+body within 300pt, buy only, SL 500' }),
+    }), MOCK_ENV)
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { params: { zones: Array<{ timeframe: string; includeBody: boolean; lookbackBars: number }> } }
+    expect(body.params.zones.map(z => z.timeframe)).toEqual(['H4', 'H1', 'M30'])
+    expect(body.params.zones[2].includeBody).toBe(true)
+    expect(body.params.zones[1].includeBody).toBe(false)
+    expect(body.params.zones[0].lookbackBars).toBe(100) // default applied
+  })
+
+  it('falls back to a single default H1 zone when Groq omits fields', async () => {
     mockGetSession.mockResolvedValue({ user: mockUser })
     mockRun.mockResolvedValue(undefined)
 
@@ -161,10 +195,11 @@ describe('POST /', () => {
     }), MOCK_ENV)
 
     expect(res.status).toBe(200)
-    const body = await res.json() as { params: { timeframe: string; biasToday: string; minWickTouches: number; tpPoints: number; slPoints: number } }
-    expect(body.params.timeframe).toBe('H1')
+    const body = await res.json() as { params: { zones: Array<{ timeframe: string; minWickTouches: number }>; biasToday: string; tpPoints: number; slPoints: number } }
+    expect(body.params.zones).toHaveLength(1)
+    expect(body.params.zones[0].timeframe).toBe('H1')
+    expect(body.params.zones[0].minWickTouches).toBe(3)
     expect(body.params.biasToday).toBe('SELL')
-    expect(body.params.minWickTouches).toBe(3)
     expect(body.params.tpPoints).toBe(100)
     expect(body.params.slPoints).toBe(50)
   })
@@ -182,13 +217,13 @@ describe('POST /', () => {
     expect(res.status).toBe(500)
   })
 
-  it('falls back to H1 when Groq returns an invalid timeframe', async () => {
+  it('falls back to H1 when Groq returns an invalid zone timeframe', async () => {
     mockGetSession.mockResolvedValue({ user: mockUser })
     mockRun.mockResolvedValue(undefined)
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({
-        choices: [{ message: { content: '{"timeframe":"M5","biasToday":"BUY"}' } }],
+        choices: [{ message: { content: '{"zones":[{"timeframe":"M5"}],"biasToday":"BUY"}' } }],
       }), { status: 200 })
     ))
 
@@ -199,8 +234,29 @@ describe('POST /', () => {
     }), MOCK_ENV)
 
     expect(res.status).toBe(200)
-    const body = await res.json() as { params: { timeframe: string } }
-    expect(body.params.timeframe).toBe('H1')
+    const body = await res.json() as { params: { zones: Array<{ timeframe: string }> } }
+    expect(body.params.zones[0].timeframe).toBe('H1')
+  })
+
+  it('never returns an empty zones array even if Groq sends one', async () => {
+    mockGetSession.mockResolvedValue({ user: mockUser })
+    mockRun.mockResolvedValue(undefined)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        choices: [{ message: { content: '{"zones":[],"biasToday":"BUY"}' } }],
+      }), { status: 200 })
+    ))
+
+    const res = await strategyRouter.request('/', authedReq('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawText: 'buy at demand zone' }),
+    }), MOCK_ENV)
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { params: { zones: unknown[] } }
+    expect(body.params.zones).toHaveLength(1)
   })
 })
 

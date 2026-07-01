@@ -14,15 +14,38 @@ const TRUSTED_ORIGINS = [
 
 type Timeframe = 'M15' | 'M30' | 'H1' | 'H4' | 'D1'
 const TIMEFRAMES: Timeframe[] = ['M15', 'M30', 'H1', 'H4', 'D1']
+// Bigger timeframe = stronger signal = checked first. The EA evaluates zones
+// in this order regardless of how the client listed them, so e.g. an H4 zone
+// always takes priority over an M30 zone when both are in range on the same tick.
+const TIMEFRAME_PRIORITY: Record<Timeframe, number> = { D1: 5, H4: 4, H1: 3, M30: 2, M15: 1 }
 
-interface StrategyParams {
+interface ZoneRule {
   timeframe: Timeframe
   minWickTouches: number
   lookbackBars: number
   proximityPoints: number
+  includeBody: boolean
+}
+
+interface StrategyParams {
+  zones: ZoneRule[]
   biasToday: 'BUY' | 'SELL' | 'MIXED'
   tpPoints: number
   slPoints: number
+}
+
+const DEFAULT_ZONE: ZoneRule = {
+  timeframe: 'H1', minWickTouches: 3, lookbackBars: 100, proximityPoints: 20, includeBody: false,
+}
+
+function normalizeZone(z: Partial<ZoneRule> | undefined): ZoneRule {
+  return {
+    timeframe: z?.timeframe && TIMEFRAMES.includes(z.timeframe) ? z.timeframe : DEFAULT_ZONE.timeframe,
+    minWickTouches: z?.minWickTouches ?? DEFAULT_ZONE.minWickTouches,
+    lookbackBars: z?.lookbackBars ?? DEFAULT_ZONE.lookbackBars,
+    proximityPoints: z?.proximityPoints ?? DEFAULT_ZONE.proximityPoints,
+    includeBody: z?.includeBody ?? DEFAULT_ZONE.includeBody,
+  }
 }
 
 interface StrategyRow {
@@ -47,18 +70,25 @@ function rowToStrategy(r: StrategyRow) {
 }
 
 async function parseStrategyText(apiKey: string, rawText: string): Promise<StrategyParams> {
-  const systemPrompt = `You are a Forex trading strategy interpreter. Convert the user's free-text strategy description into a structured JSON config. Return JSON only — no explanation outside JSON.
+  const systemPrompt = `You are a Forex trading strategy interpreter. Convert the user's free-text strategy description into a structured JSON config. The strategy can describe rules for multiple chart timeframes at once (e.g. "H4: 1 wick touch is enough" and "H1: needs 3 wicks clustered within 300 points") — extract one zone rule per timeframe mentioned. Return JSON only — no explanation outside JSON.
 
 Required JSON structure:
 {
-  "timeframe": "M15" | "M30" | "H1" | "H4" | "D1" (which chart timeframe to scan for the zone; default "H1" if not specified),
-  "minWickTouches": <integer, minimum number of candle wicks that must cluster together to count as a demand/supply zone>,
-  "lookbackBars": <integer, how many recent candles to scan, default 100 if not specified>,
-  "proximityPoints": <integer, how close (in points) wick lows/highs must be to count as the same zone, default 20 if not specified>,
+  "zones": [
+    {
+      "timeframe": "M15" | "M30" | "H1" | "H4" | "D1",
+      "minWickTouches": <integer, minimum number of candle wicks that must cluster together to count as a demand/supply zone on this timeframe>,
+      "lookbackBars": <integer, how many recent candles to scan, default 100 if not specified>,
+      "proximityPoints": <integer, how close (in points) candles must be to count as the same zone, default 20 if not specified>,
+      "includeBody": <boolean, true if the strategy says to measure from both the candle body (open/close) and the wick, false if wick only>
+    }
+  ],
   "biasToday": "BUY" | "SELL" | "MIXED",
-  "tpPoints": <integer, take profit distance in points>,
-  "slPoints": <integer, stop loss distance in points>
-}`
+  "tpPoints": <integer, take profit distance in points, shared across all zones>,
+  "slPoints": <integer, stop loss distance in points, shared across all zones>
+}
+
+If the strategy only mentions one timeframe, return a single-item zones array. Never return an empty zones array — if no timeframe is mentioned at all, default to one H1 zone.`
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -83,13 +113,16 @@ Required JSON structure:
   const text = data.choices[0]?.message?.content ?? '{}'
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Groq returned no JSON')
-  const parsed = JSON.parse(jsonMatch[0]) as Partial<StrategyParams>
+  const parsed = JSON.parse(jsonMatch[0]) as { zones?: Partial<ZoneRule>[] } & Partial<StrategyParams>
+
+  // Stored pre-sorted (biggest timeframe first) so any consumer — the EA,
+  // future clients — can just walk the array top-to-bottom for priority order.
+  const zones = (parsed.zones && parsed.zones.length > 0 ? parsed.zones : [DEFAULT_ZONE])
+    .map(normalizeZone)
+    .sort((a, b) => TIMEFRAME_PRIORITY[b.timeframe] - TIMEFRAME_PRIORITY[a.timeframe])
 
   return {
-    timeframe: parsed.timeframe && TIMEFRAMES.includes(parsed.timeframe) ? parsed.timeframe : 'H1',
-    minWickTouches: parsed.minWickTouches ?? 3,
-    lookbackBars: parsed.lookbackBars ?? 100,
-    proximityPoints: parsed.proximityPoints ?? 20,
+    zones,
     biasToday: parsed.biasToday && ['BUY', 'SELL', 'MIXED'].includes(parsed.biasToday) ? parsed.biasToday : 'MIXED',
     tpPoints: parsed.tpPoints ?? 100,
     slPoints: parsed.slPoints ?? 50,

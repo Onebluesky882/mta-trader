@@ -2,11 +2,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useApi } from './use-api'
 
-export type StrategyParams = {
+export type ZoneRule = {
   timeframe: 'M15' | 'M30' | 'H1' | 'H4' | 'D1'
   minWickTouches: number
   lookbackBars: number
   proximityPoints: number
+  includeBody: boolean
+}
+
+export type StrategyParams = {
+  zones: ZoneRule[]
   biasToday: 'BUY' | 'SELL' | 'MIXED'
   tpPoints: number
   slPoints: number
