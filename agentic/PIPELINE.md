@@ -26,7 +26,8 @@ Last Updated: 2026-07-01
 | stage-13-compare-versions | apps/web | stage-12-auto-snapshot | DONE |
 | stage-14-ai-signal | apps/api + apps/web | stage-10-production | DONE |
 | stage-15-architecture-pivot | apps/api + MT5 EA | stage-14-ai-signal | DONE |
-| stage-16-strategy-engine | apps/api + apps/web + MT5 EA | stage-15-architecture-pivot | CODE_COMPLETE |
+| stage-16-strategy-engine | apps/api + apps/web + MT5 EA | stage-15-architecture-pivot | DONE |
+| stage-17-multi-symbol-strategy | apps/api + apps/web + MT5 EA | stage-16-strategy-engine | PLANNED |
 
 ---
 
@@ -186,11 +187,11 @@ Last Updated: 2026-07-01
 
 ---
 
-### stage-16-strategy-engine — CODE_COMPLETE
+### stage-16-strategy-engine — DONE
 
 **Domain:** apps/api + apps/web + MT5 EA
 **Depends On:** stage-15-architecture-pivot
-**Status:** `CODE_COMPLETE` (ยังไม่ผ่าน live MT5 field test — ดู stage-11)
+**Status:** `DONE` — field-tested บน MT5 จริงสำเร็จ 2026-07-02 (Demand zone hit → BUY เปิด order จริงบน IUX demo)
 
 **เป้าหมาย:** ให้ client พิมพ์กลยุทธ์เป็น text ธรรมดา (เช่น "H1 demand zone, lower wick แตะกัน 5 แท่ง → BUY") แล้ว AI แปลงเป็น config ครั้งเดียว จากนั้น EA คำนวณ zone จริงจาก candle history เองทุก tick โดยไม่ต้องเรียก AI ต่อ trade (ประหยัด latency/cost) พร้อม track ผลกำไร/ขาดทุนแยกตามกลยุทธ์
 
@@ -207,7 +208,40 @@ Last Updated: 2026-07-01
 - [x] Typecheck ผ่านทั้ง `apps/api`, `apps/web`, `apps/admin`
 - [x] Verify ด้วย Playwright จริง (screenshot `/strategy` หลัง inject fake auth token) — เห็น form/nav/list render ถูกต้อง
 - [x] Migration รันแล้วทั้ง local D1 และ **remote D1 (production)** — ตรวจสอบ table/FK/index ครบ
-- [ ] ยังไม่ได้ทดสอบ entry จริงบน MT5 ของจริง (ต้องรอ EA ติดตั้งบนเครื่องจริงตาม stage-11 ก่อน ถึงจะเห็น zone-detection ทำงานกับราคาสด)
+- [x] ทดสอบ entry จริงบน MT5 (IUX demo, XAUUSD.iux) — `Demand zone hit (tf:M15) touches:3 -> BUY` แล้วเปิด order สำเร็จ
+
+**บั๊กที่เจอระหว่าง field test (แก้ครบแล้ว):**
+- `PUT /:id/activate` เขียนทับ `updated_at` ของกลยุทธ์ทุกตัว (ไม่ใช่แค่ตัวที่ activate) ทำให้เวลาที่แสดงในลิสต์ผิด — แก้เป็น update เฉพาะแถวที่ activate จริง
+- `g_symbol` default เป็น `"EURUSD"` (hardcoded) — ถ้า `FetchSettings()`/`FetchStrategy()` fetch ครั้งแรกไม่สำเร็จ EA จะคำนวณ zone ผิด symbol ไปเงียบๆ — แก้เป็น `g_symbol = _Symbol` (symbol ของ chart ที่แปะ EA) ใน `OnInit()`
+- Groq คืน 403 เพราะ API key เก่าใช้ไม่ได้ (ไม่ใช่บั๊กโค้ด) — regenerate key ใหม่แก้ได้ (เพิ่ม User-Agent header ไว้ด้วยเผื่อ Groq/Cloudflare edge บล็อก request ที่ไม่มี header นี้)
+- ลืม deploy `apps/web` พร้อม `apps/api` หลังแก้ response shape 2 ครั้ง (ดู Deploy Checklist ด้านล่าง)
+
+---
+
+### stage-17-multi-symbol-strategy — PLANNED
+
+**Domain:** apps/api + apps/web + MT5 EA
+**Depends On:** stage-16-strategy-engine
+**Status:** `PLANNED` — วางแผนไว้ 2026-07-02 ยังไม่เริ่มเขียนโค้ด
+
+**เป้าหมาย:** ให้ bot เทรดได้หลาย symbol พร้อมกัน (ทอง/น้ำมัน/BTC) โดยแต่ละ symbol มีกลยุทธ์ของตัวเอง (TP/SL/zone rule ต่างกันได้ — เช่น BTC ผันผวนกว่าทองมาก ต้องใช้ TP/SL คนละสเกล)
+
+**ทำไมต้องแก้ (ข้อจำกัดปัจจุบัน):** `strategy_config` ไม่มี field ผูกกับ symbol เลย — `GET /api/strategy/active` คืนกลยุทธ์ active ตัวเดียวของ user แบบ global ถ้าลาก EA ไปแปะหลาย chart (Gold/Oil/BTC) วันนี้ ทุก chart จะได้กลยุทธ์ตัวเดียวกันหมด (ใช้ symbol ของ chart ตัวเองในการคำนวณ zone ก็จริง แต่ TP/SL/bias ใช้ค่าเดียวกันทั้งหมด ซึ่งไม่ make sense ข้าม instrument ที่ผันผวนต่างกันมาก)
+
+**แผนคร่าวๆ:**
+- DB: เพิ่ม column `symbol TEXT` ใน `strategy_config` (migration แบบ `0003_strategy_config_add_symbol.sql` ตาม pattern เดิม) — `NULL`/`""` = ใช้ได้กับทุก symbol (backward compatible กับกลยุทธ์เก่า)
+- API: `GET /api/strategy/active` รับ query param `?symbol=XAUUSD.iux` จาก EA, filter หากลยุทธ์ที่ตรง symbol (หรือ fallback ตัวที่ไม่ระบุ symbol ถ้าไม่เจอ) — `POST /api/strategy` รับ `symbol` เพิ่มจาก body หรือให้ AI เดาจาก raw text ก็ได้ (เช่น พิมพ์ "BTC H1 demand zone...")
+- Web: เพิ่ม dropdown เลือก symbol ตอนสร้างกลยุทธ์ (Gold/Oil/BTC/อื่นๆ) + แสดง symbol เป็น chip ในลิสต์
+- EA: `FetchStrategy()` ส่ง `?symbol=` + `_Symbol` (หรือ `g_symbol`) ตอนเรียก `/api/strategy/active` — ไม่ต้องแก้ zone-calculation logic เลยเพราะใช้ `g_symbol` อยู่แล้ว
+- ทดสอบ: แปะ EA เดียวกัน 3 charts (Gold/Oil/BTC) พร้อมกัน แต่ละ chart ต้องดึงกลยุทธ์คนละตัว ไม่ปนกัน
+
+**Acceptance Criteria:**
+- [ ] Migration `symbol` column รันทั้ง local + remote D1
+- [ ] `GET /api/strategy/active?symbol=X` filter ถูกต้อง + unit test
+- [ ] `POST /api/strategy` เก็บ `symbol` ได้
+- [ ] เว็บ `/strategy` มี dropdown เลือก symbol + chip แสดงในลิสต์
+- [ ] EA ส่ง `_Symbol` แนบไปตอน fetch strategy
+- [ ] Field test: 3 charts (Gold/Oil/BTC) รันพร้อมกัน ได้กลยุทธ์คนละตัวถูกต้อง ไม่มี trade ข้าม symbol
 
 ---
 
