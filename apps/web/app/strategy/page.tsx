@@ -150,20 +150,22 @@ function StrategyRow({ s, expandedId, onToggleExpand }: {
           >
             {isExpanded ? 'Hide Performance' : 'View Performance'}
           </button>
-          {!s.isActive && (
-            <button
-              onClick={() => activate(s.id)}
-              disabled={isPending}
-              style={{
-                fontSize: 12, fontWeight: 600, color: '#fff',
-                background: isPending ? 'var(--surface-2)' : 'var(--accent)',
-                border: 'none', borderRadius: 6, padding: '6px 12px',
-                cursor: isPending ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
-              }}
-            >
-              {isPending ? 'Activating…' : 'Activate'}
-            </button>
-          )}
+          {/* Active -> solid green button. Not active -> white button with green border/text (click to activate). */}
+          <button
+            onClick={() => !s.isActive && activate(s.id)}
+            disabled={isPending || s.isActive}
+            style={{
+              fontSize: 12, fontWeight: 600,
+              color: s.isActive ? '#fff' : (isPending ? 'var(--text-faint)' : 'var(--accent)'),
+              background: s.isActive ? 'var(--accent)' : (isPending ? 'var(--surface-2)' : '#fff'),
+              border: s.isActive ? 'none' : `1px solid var(--accent)`,
+              borderRadius: 6, padding: '6px 12px',
+              cursor: s.isActive ? 'default' : (isPending ? 'not-allowed' : 'pointer'),
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {s.isActive ? 'Active' : (isPending ? 'Activating…' : 'Activate')}
+          </button>
         </div>
       </div>
 
@@ -213,8 +215,13 @@ export default function StrategyPage() {
     createStrategy(rawText, { onSuccess: () => setRawText('') })
   }
 
+  // Active strategy is pinned to the top regardless of timestamps — the rest
+  // fall back to most-recently-updated first.
   const displayOrder = strategies
-    ? [...strategies].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    ? [...strategies].sort((a, b) => {
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      })
     : []
 
   return (
