@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: '/',           label: 'Dashboard' },
   { href: '/log',        label: 'Trade Log' },
   { href: '/settings',   label: 'Settings' },
+  { href: '/strategy',   label: 'Strategy' },
   { href: '/optimize',   label: 'Optimize' },
   { href: '/ai-config',  label: 'AI Config' },
 ]
