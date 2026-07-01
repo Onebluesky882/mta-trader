@@ -29,7 +29,7 @@ type FieldDef = {
 
 const FIELD_DEFS: FieldDef[] = [
   // Trading
-  { key: 'symbol',      label: 'Symbol',        group: 'Trading',    type: 'select',  options: ['EURUSD','GBPUSD','USDJPY','XAUUSD','AUDUSD','USDCAD'] },
+  { key: 'symbol',      label: 'Symbol',        group: 'Trading',    type: 'text',    hint: 'ชื่อ symbol ตรงกับ Market Watch ใน MT5 เป๊ะๆ รวม suffix ของ broker (เช่น XAUUSD.iux)' },
   { key: 'direction',   label: 'Direction',      group: 'Trading',    type: 'select',  options: ['BUY','SELL','BOTH'] },
   { key: 'maxTrades',   label: 'Max Trades',     group: 'Trading',    type: 'number',  step: 1,     hint: 'จำนวน position ที่เปิดพร้อมกันสูงสุด' },
   { key: 'lotSize',     label: 'Lot Size',       group: 'Trading',    type: 'number',  step: 0.01,  hint: 'ขนาด lot ต่อ position' },
