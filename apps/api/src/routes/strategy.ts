@@ -114,7 +114,10 @@ If the strategy only mentions one timeframe, return a single-item zones array. N
     }),
   })
 
-  if (!res.ok) throw new Error(`Groq API error: ${res.status}`)
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '')
+    throw new Error(`Groq API error: ${res.status} ${errBody.slice(0, 300)}`)
+  }
 
   const data = await res.json() as { choices: Array<{ message: { content: string } }> }
   const text = data.choices[0]?.message?.content ?? '{}'
