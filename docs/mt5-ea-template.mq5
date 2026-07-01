@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
-//| ATP Bot Trader — MT5 Expert Advisor                              |
-//| Version: 3.0                                                      |
-//| Flow: Fetch settings → Check RSI → Ask AI → Open if AI confirms |
+//| ATP Bot Trader - MT5 Expert Advisor                              |
+//| Version: 3.0                                                     |
+//| Flow: Fetch settings -> Check RSI -> Ask AI -> Open if approved |
 //+------------------------------------------------------------------+
 #property copyright "ATP Bot Trader"
 #property version   "3.00"
@@ -9,13 +9,14 @@
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
+#include <Trade\DealInfo.mqh>
 
 //--- Inputs
 input string API_URL      = "https://atp-bot-trader-api.onebluesky882.workers.dev";
-input string MT5_SECRET   = "";   // Personal API key จาก /account ในเว็บ
+input string MT5_SECRET   = "";
 input int    MAGIC_NUMBER = 20240001;
 
-//--- Settings fetched from API (updated every 5 min)
+//--- Settings from API
 string g_symbol      = "EURUSD";
 string g_direction   = "BUY";
 int    g_maxTrades   = 1;
@@ -24,15 +25,16 @@ int    g_stopLoss    = 50;
 int    g_takeProfit  = 100;
 int    g_settingsVersion = 0;
 
-//--- AI Config fetched from API
-bool   g_aiEnabled       = false;
-int    g_confidenceMin   = 70;   // ต่ำกว่านี้ → ข้ามไม่เทรด
-double g_rrMin           = 1.5;
+//--- AI Config from API
+bool   g_aiEnabled     = false;
+int    g_confidenceMin = 70;
+double g_rrMin         = 1.5;
 
 datetime g_lastSettingsFetch = 0;
 datetime g_lastAiConfig      = 0;
 
-CTrade g_trade;
+CTrade    g_trade;
+CDealInfo g_deal;
 
 //+------------------------------------------------------------------+
 int OnInit() {
@@ -41,8 +43,8 @@ int OnInit() {
    FetchAiConfig();
    EventSetTimer(60);
    SendHeartbeat("RUNNING");
-   Print("[ATP v3] Started — AI:", (g_aiEnabled ? "ON" : "OFF"),
-         " MinConfidence:", g_confidenceMin, "%");
+   Print("[ATP v3] Started AI:", (g_aiEnabled ? "ON" : "OFF"),
+         " MinConf:", g_confidenceMin, "%");
    return INIT_SUCCEEDED;
 }
 
@@ -53,41 +55,35 @@ void OnDeinit(const int reason) {
 
 void OnTimer() {
    SendHeartbeat("RUNNING");
-   if (TimeCurrent() - g_lastSettingsFetch >= 300) FetchSettings();
-   if (TimeCurrent() - g_lastAiConfig      >= 300) FetchAiConfig();
+   if(TimeCurrent() - g_lastSettingsFetch >= 300) FetchSettings();
+   if(TimeCurrent() - g_lastAiConfig      >= 300) FetchAiConfig();
 }
 
-//+------------------------------------------------------------------+
-//| Tick — check signal → AI verify → open                          |
 //+------------------------------------------------------------------+
 void OnTick() {
    int openCount = CountOpenPositions();
-   if (openCount >= g_maxTrades) return;
+   if(openCount >= g_maxTrades) return;
 
-   if (g_direction == "BUY" || g_direction == "BOTH") {
-      if (CheckBuySignal()) {
-         if (AiApproves("BUY")) OpenPosition(ORDER_TYPE_BUY);
+   if(g_direction == "BUY" || g_direction == "BOTH") {
+      if(CheckBuySignal()) {
+         if(AiApproves("BUY")) OpenPosition(ORDER_TYPE_BUY);
       }
    }
-   if (g_direction == "SELL" || g_direction == "BOTH") {
-      if (CheckSellSignal()) {
-         if (AiApproves("SELL")) OpenPosition(ORDER_TYPE_SELL);
+   if(g_direction == "SELL" || g_direction == "BOTH") {
+      if(CheckSellSignal()) {
+         if(AiApproves("SELL")) OpenPosition(ORDER_TYPE_SELL);
       }
    }
 }
 
 //+------------------------------------------------------------------+
-//| Ask AI — returns true if AI approves the direction              |
-//| If AI disabled → always returns true                             |
-//+------------------------------------------------------------------+
 bool AiApproves(string direction) {
-   if (!g_aiEnabled) return true;
+   if(!g_aiEnabled) return true;
 
-   double ask    = SymbolInfoDouble(g_symbol, SYMBOL_ASK);
-   double bid    = SymbolInfoDouble(g_symbol, SYMBOL_BID);
-   double price  = (direction == "BUY") ? ask : bid;
+   double ask   = SymbolInfoDouble(g_symbol, SYMBOL_ASK);
+   double bid   = SymbolInfoDouble(g_symbol, SYMBOL_BID);
+   double price = (direction == "BUY") ? ask : bid;
 
-   // Build indicators for AI
    double rsiH4  = GetRSI(g_symbol, PERIOD_H4, 14);
    double rsiH1  = GetRSI(g_symbol, PERIOD_H1, 14);
    double macdH4 = GetMACDHistogram(g_symbol, PERIOD_H4, 12, 26, 9);
@@ -107,76 +103,63 @@ bool AiApproves(string direction) {
    );
 
    string resp = PostToAPIWithResponse("/api/ai-signal/analyze", body);
-   if (resp == "") {
-      Print("[ATP] AI analyze failed — allowing trade (fallback)");
+   if(resp == "") {
+      Print("[ATP] AI failed - allowing trade");
       return true;
    }
 
    string aiSignal     = JsonGetString(resp, "signal");
    int    aiConfidence = (int)JsonGetNumber(resp, "confidence");
 
-   Print("[ATP] AI signal:", aiSignal, " confidence:", aiConfidence, "%",
-         " (min:", g_confidenceMin, "%)");
+   Print("[ATP] AI signal:", aiSignal, " conf:", aiConfidence, "% min:", g_confidenceMin, "%");
 
-   if (aiConfidence < g_confidenceMin) {
-      Print("[ATP] AI confidence too low — skip trade");
-      return false;
-   }
-   if (aiSignal == "HOLD") {
-      Print("[ATP] AI says HOLD — skip trade");
-      return false;
-   }
-   if (aiSignal != direction) {
-      Print("[ATP] AI direction mismatch (signal:", aiSignal, " wanted:", direction, ") — skip");
-      return false;
-   }
+   if(aiConfidence < g_confidenceMin) { Print("[ATP] Confidence too low - skip"); return false; }
+   if(aiSignal == "HOLD")             { Print("[ATP] AI says HOLD - skip");        return false; }
+   if(aiSignal != direction)          { Print("[ATP] Direction mismatch - skip");   return false; }
 
-   Print("[ATP] AI approved ", direction, " with confidence:", aiConfidence, "%");
+   Print("[ATP] AI approved ", direction, " conf:", aiConfidence, "%");
    return true;
 }
 
 //+------------------------------------------------------------------+
-//| Trade event handler                                              |
-//+------------------------------------------------------------------+
 void OnTradeTransaction(const MqlTradeTransaction &trans,
-                        const MqlTradeRequest    &request,
-                        const MqlTradeResult     &result) {
-   if (trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
+                        const MqlTradeRequest     &request,
+                        const MqlTradeResult      &result) {
+   if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
+   if(!g_deal.SelectByTicket(trans.deal))       return;
+   if(g_deal.Magic() != MAGIC_NUMBER)           return;
 
-   CDealInfo deal;
-   if (!deal.SelectByTicket(trans.deal)) return;
-   if (deal.Magic() != MAGIC_NUMBER) return;
-
-   if (deal.Entry() == DEAL_ENTRY_IN) {
-      string dir = (deal.DealType() == DEAL_TYPE_BUY) ? "BUY" : "SELL";
+   if(g_deal.Entry() == DEAL_ENTRY_IN) {
+      string dir = (g_deal.DealType() == DEAL_TYPE_BUY) ? "BUY" : "SELL";
       SendTradeOpen(
-         (long)deal.PositionId(), deal.Symbol(), dir, deal.Price(), deal.Volume(),
-         TimeToString(deal.Time(), TIME_DATE | TIME_MINUTES | TIME_SECONDS)
+         (long)g_deal.PositionId(),
+         g_deal.Symbol(), dir,
+         g_deal.Price(), g_deal.Volume(),
+         TimeToString(g_deal.Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS)
       );
    }
-   else if (deal.Entry() == DEAL_ENTRY_OUT) {
+   else if(g_deal.Entry() == DEAL_ENTRY_OUT) {
+      ENUM_DEAL_REASON dealReason = (ENUM_DEAL_REASON)HistoryDealGetInteger(g_deal.Ticket(), DEAL_REASON);
       SendTradeClose(
-         (long)deal.PositionId(), deal.Price(),
-         TimeToString(deal.Time(), TIME_DATE | TIME_MINUTES | TIME_SECONDS),
-         deal.Profit(), GetCloseReason(deal.Reason())
+         (long)g_deal.PositionId(),
+         g_deal.Price(),
+         TimeToString(g_deal.Time(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+         g_deal.Profit(),
+         GetCloseReason(dealReason)
       );
    }
 }
 
 //+------------------------------------------------------------------+
-//| Count open positions by this EA                                  |
-//+------------------------------------------------------------------+
 int CountOpenPositions() {
    int count = 0;
-   for (int i = PositionsTotal() - 1; i >= 0; i--) {
-      if (PositionGetSymbol(i) == g_symbol &&
-          PositionGetInteger(POSITION_MAGIC) == MAGIC_NUMBER) count++;
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      if(PositionGetSymbol(i) == g_symbol &&
+         PositionGetInteger(POSITION_MAGIC) == MAGIC_NUMBER) count++;
    }
    return count;
 }
 
-//+------------------------------------------------------------------+
-//| Open a position                                                  |
 //+------------------------------------------------------------------+
 void OpenPosition(ENUM_ORDER_TYPE type) {
    double point   = SymbolInfoDouble(g_symbol, SYMBOL_POINT);
@@ -185,9 +168,9 @@ void OpenPosition(ENUM_ORDER_TYPE type) {
 
    double ask = SymbolInfoDouble(g_symbol, SYMBOL_ASK);
    double bid = SymbolInfoDouble(g_symbol, SYMBOL_BID);
-
    double price, sl, tp;
-   if (type == ORDER_TYPE_BUY) {
+
+   if(type == ORDER_TYPE_BUY) {
       price = ask;
       sl = NormalizeDouble(price - g_stopLoss  * pipSize, digits);
       tp = NormalizeDouble(price + g_takeProfit * pipSize, digits);
@@ -199,47 +182,41 @@ void OpenPosition(ENUM_ORDER_TYPE type) {
 
    bool ok = g_trade.PositionOpen(g_symbol, type, g_lotSize, price, sl, tp,
                                    "ATP v" + IntegerToString(g_settingsVersion));
-   if (!ok) Print("[ATP] Failed to open: ", g_trade.ResultRetcodeDescription());
+   if(!ok) Print("[ATP] Open failed: ", g_trade.ResultRetcodeDescription());
 }
 
-//+------------------------------------------------------------------+
-//| RSI signal                                                       |
 //+------------------------------------------------------------------+
 bool CheckBuySignal()  { return GetRSI(g_symbol, PERIOD_CURRENT, 14) < 30.0; }
 bool CheckSellSignal() { return GetRSI(g_symbol, PERIOD_CURRENT, 14) > 70.0; }
 
 //+------------------------------------------------------------------+
-//| Indicator helpers                                                |
-//+------------------------------------------------------------------+
 double GetRSI(string sym, ENUM_TIMEFRAMES tf, int period) {
    int handle = iRSI(sym, tf, period, PRICE_CLOSE);
-   if (handle == INVALID_HANDLE) return 50;
+   if(handle == INVALID_HANDLE) return 50;
    double buf[];
-   if (CopyBuffer(handle, 0, 1, 1, buf) < 1) { IndicatorRelease(handle); return 50; }
+   if(CopyBuffer(handle, 0, 1, 1, buf) < 1) { IndicatorRelease(handle); return 50; }
    IndicatorRelease(handle);
    return buf[0];
 }
 
 double GetMACDHistogram(string sym, ENUM_TIMEFRAMES tf, int fast, int slow, int sig) {
    int handle = iMACD(sym, tf, fast, slow, sig, PRICE_CLOSE);
-   if (handle == INVALID_HANDLE) return 0;
+   if(handle == INVALID_HANDLE) return 0;
    double buf[];
-   if (CopyBuffer(handle, 2, 1, 1, buf) < 1) { IndicatorRelease(handle); return 0; }
+   if(CopyBuffer(handle, 2, 1, 1, buf) < 1) { IndicatorRelease(handle); return 0; }
    IndicatorRelease(handle);
    return buf[0];
 }
 
 double GetEMA(string sym, ENUM_TIMEFRAMES tf, int period) {
    int handle = iMA(sym, tf, period, 0, MODE_EMA, PRICE_CLOSE);
-   if (handle == INVALID_HANDLE) return 0;
+   if(handle == INVALID_HANDLE) return 0;
    double buf[];
-   if (CopyBuffer(handle, 0, 1, 1, buf) < 1) { IndicatorRelease(handle); return 0; }
+   if(CopyBuffer(handle, 0, 1, 1, buf) < 1) { IndicatorRelease(handle); return 0; }
    IndicatorRelease(handle);
    return buf[0];
 }
 
-//+------------------------------------------------------------------+
-//| Fetch settings from API                                         |
 //+------------------------------------------------------------------+
 void FetchSettings() {
    string headers = "X-MT5-Secret: " + MT5_SECRET + "\r\n";
@@ -247,26 +224,24 @@ void FetchSettings() {
    string respHeaders;
    int status = WebRequest("GET", API_URL + "/api/settings/active",
                            headers, 5000, req, resp, respHeaders);
-   if (status != 200) { Print("[ATP] FetchSettings failed HTTP:", status); return; }
+   if(status != 200) { Print("[ATP] FetchSettings failed HTTP:", status); return; }
 
-   string json = CharArrayToString(resp);
+   string json       = CharArrayToString(resp);
    string paramsJson = JsonGetObject(json, "params");
 
-   string sym = JsonGetString(paramsJson, "symbol");   if (sym != "") g_symbol = sym;
-   string dir = JsonGetString(paramsJson, "direction"); if (dir != "") g_direction = dir;
-   int mt = (int)JsonGetNumber(paramsJson, "maxTrades"); if (mt > 0) g_maxTrades = mt;
-   double lot = JsonGetNumber(paramsJson, "lotSize");    if (lot > 0) g_lotSize = lot;
-   int sl = (int)JsonGetNumber(paramsJson, "stopLoss");  if (sl > 0) g_stopLoss = sl;
-   int tp = (int)JsonGetNumber(paramsJson, "takeProfit");if (tp > 0) g_takeProfit = tp;
-   int ver = (int)JsonGetNumber(json, "version");        if (ver > 0) g_settingsVersion = ver;
+   string sym = JsonGetString(paramsJson, "symbol");    if(sym != "") g_symbol = sym;
+   string dir = JsonGetString(paramsJson, "direction"); if(dir != "") g_direction = dir;
+   int mt = (int)JsonGetNumber(paramsJson, "maxTrades"); if(mt > 0) g_maxTrades = mt;
+   double lot = JsonGetNumber(paramsJson, "lotSize");    if(lot > 0) g_lotSize = lot;
+   int sl = (int)JsonGetNumber(paramsJson, "stopLoss");  if(sl > 0) g_stopLoss = sl;
+   int tp = (int)JsonGetNumber(paramsJson, "takeProfit");if(tp > 0) g_takeProfit = tp;
+   int ver = (int)JsonGetNumber(json, "version");        if(ver > 0) g_settingsVersion = ver;
 
    g_lastSettingsFetch = TimeCurrent();
-   Print("[ATP] Settings v", g_settingsVersion, " — ", g_direction, " ", g_symbol,
+   Print("[ATP] Settings v", g_settingsVersion, " ", g_direction, " ", g_symbol,
          " max:", g_maxTrades, " lot:", g_lotSize, " SL:", g_stopLoss, " TP:", g_takeProfit);
 }
 
-//+------------------------------------------------------------------+
-//| Fetch AI Config from API                                        |
 //+------------------------------------------------------------------+
 void FetchAiConfig() {
    string headers = "X-MT5-Secret: " + MT5_SECRET + "\r\n";
@@ -274,27 +249,25 @@ void FetchAiConfig() {
    string respHeaders;
    int status = WebRequest("GET", API_URL + "/api/ai-config/active",
                            headers, 5000, req, resp, respHeaders);
-   if (status != 200) { Print("[ATP] FetchAiConfig failed HTTP:", status); return; }
+   if(status != 200) { Print("[ATP] FetchAiConfig failed HTTP:", status); return; }
 
    string json       = CharArrayToString(resp);
    string paramsJson = JsonGetObject(json, "params");
 
-   string aiEnabledStr = JsonGetString(paramsJson, "aiEnabled");
-   g_aiEnabled = (aiEnabledStr == "true" || JsonGetNumber(paramsJson, "aiEnabled") == 1);
+   string aiStr = JsonGetString(paramsJson, "aiEnabled");
+   g_aiEnabled = (aiStr == "true" || JsonGetNumber(paramsJson, "aiEnabled") == 1);
 
    int conf = (int)JsonGetNumber(paramsJson, "confidenceMin");
-   if (conf > 0) g_confidenceMin = conf;
+   if(conf > 0) g_confidenceMin = conf;
 
    double rr = JsonGetNumber(paramsJson, "rrMin");
-   if (rr > 0) g_rrMin = rr;
+   if(rr > 0) g_rrMin = rr;
 
    g_lastAiConfig = TimeCurrent();
-   Print("[ATP] AI Config — enabled:", (g_aiEnabled ? "YES" : "NO"),
-         " minConfidence:", g_confidenceMin, "% minRR:", g_rrMin);
+   Print("[ATP] AI Config enabled:", (g_aiEnabled ? "YES" : "NO"),
+         " minConf:", g_confidenceMin, "% RR:", g_rrMin);
 }
 
-//+------------------------------------------------------------------+
-//| Send trade-open to API                                          |
 //+------------------------------------------------------------------+
 void SendTradeOpen(long ticket, string symbol, string direction,
                    double openPrice, double volume, string openTime) {
@@ -304,11 +277,9 @@ void SendTradeOpen(long ticket, string symbol, string direction,
       ticket, symbol, direction, openPrice, volume, openTime
    );
    PostToAPI("/api/mt5/trade-open", body);
-   Print("[ATP] trade-open: #", ticket, " ", direction, " ", symbol, " @", openPrice);
+   Print("[ATP] trade-open #", ticket, " ", direction, " ", symbol, " @", openPrice);
 }
 
-//+------------------------------------------------------------------+
-//| Send trade-close to API                                         |
 //+------------------------------------------------------------------+
 void SendTradeClose(long ticket, double closePrice, string closeTime,
                     double profit, string reason) {
@@ -318,21 +289,17 @@ void SendTradeClose(long ticket, double closePrice, string closeTime,
       ticket, closePrice, closeTime, profit, reason
    );
    PostToAPI("/api/mt5/trade-close", body);
-   Print("[ATP] trade-close: #", ticket, " P&L:", (profit >= 0 ? "+" : ""),
-         DoubleToString(profit, 2), " reason:", reason);
+   string sign = profit >= 0 ? "+" : "";
+   Print("[ATP] trade-close #", ticket, " PnL:", sign, DoubleToString(profit, 2), " ", reason);
 }
 
-//+------------------------------------------------------------------+
-//| Send heartbeat                                                  |
 //+------------------------------------------------------------------+
 void SendHeartbeat(string status) {
    string body = StringFormat("{\"status\":\"%s\",\"timestamp\":\"%s\"}",
-      status, TimeToString(TimeCurrent(), TIME_DATE | TIME_MINUTES | TIME_SECONDS));
+      status, TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES|TIME_SECONDS));
    PostToAPI("/api/mt5/heartbeat", body);
 }
 
-//+------------------------------------------------------------------+
-//| HTTP POST (fire and forget)                                     |
 //+------------------------------------------------------------------+
 void PostToAPI(string path, string body) {
    string url     = API_URL + path;
@@ -341,13 +308,11 @@ void PostToAPI(string path, string body) {
    string respHeaders;
    StringToCharArray(body, req, 0, StringLen(body));
    int status = WebRequest("POST", url, headers, 5000, req, resp, respHeaders);
-   if (status < 0)
+   if(status < 0)
       Print("[ATP] WebRequest error:", GetLastError(),
-            " — Add URL to: Tools > Options > Expert Advisors");
+            " Add URL in: Tools > Options > Expert Advisors");
 }
 
-//+------------------------------------------------------------------+
-//| HTTP POST that returns response body                            |
 //+------------------------------------------------------------------+
 string PostToAPIWithResponse(string path, string body) {
    string url     = API_URL + path;
@@ -356,40 +321,33 @@ string PostToAPIWithResponse(string path, string body) {
    string respHeaders;
    StringToCharArray(body, req, 0, StringLen(body));
    int status = WebRequest("POST", url, headers, 8000, req, resp, respHeaders);
-   if (status != 200) {
-      Print("[ATP] AI analyze HTTP:", status);
-      return "";
-   }
+   if(status != 200) { Print("[ATP] AI HTTP:", status); return ""; }
    return CharArrayToString(resp);
 }
 
 //+------------------------------------------------------------------+
 string GetCloseReason(ENUM_DEAL_REASON reason) {
-   switch(reason) {
-      case DEAL_REASON_TP:     return "Take Profit";
-      case DEAL_REASON_SL:     return "Stop Loss";
-      case DEAL_REASON_EXPERT: return "EA Close";
-      default:                 return "Manual";
-   }
+   if(reason == DEAL_REASON_TP)     return "Take Profit";
+   if(reason == DEAL_REASON_SL)     return "Stop Loss";
+   if(reason == DEAL_REASON_EXPERT) return "EA Close";
+   return "Manual";
 }
 
-//+------------------------------------------------------------------+
-//| JSON helpers                                                    |
 //+------------------------------------------------------------------+
 string JsonGetString(string json, string key) {
    string search = "\"" + key + "\":\"";
    int start = StringFind(json, search);
-   if (start < 0) return "";
+   if(start < 0) return "";
    start += StringLen(search);
    int end = StringFind(json, "\"", start);
-   if (end < 0) return "";
+   if(end < 0) return "";
    return StringSubstr(json, start, end - start);
 }
 
 double JsonGetNumber(string json, string key) {
    string search = "\"" + key + "\":";
    int start = StringFind(json, search);
-   if (start < 0) return 0;
+   if(start < 0) return 0;
    start += StringLen(search);
    return StringToDouble(StringSubstr(json, start, 20));
 }
@@ -397,13 +355,16 @@ double JsonGetNumber(string json, string key) {
 string JsonGetObject(string json, string key) {
    string search = "\"" + key + "\":{";
    int start = StringFind(json, search);
-   if (start < 0) return "{}";
+   if(start < 0) return "{}";
    start += StringLen(search) - 1;
    int depth = 0, i = start;
-   while (i < StringLen(json)) {
+   while(i < StringLen(json)) {
       ushort c = StringGetCharacter(json, i);
-      if (c == '{') depth++;
-      else if (c == '}') { depth--; if (depth == 0) return StringSubstr(json, start, i - start + 1); }
+      if(c == '{') depth++;
+      else if(c == '}') {
+         depth--;
+         if(depth == 0) return StringSubstr(json, start, i - start + 1);
+      }
       i++;
    }
    return "{}";
