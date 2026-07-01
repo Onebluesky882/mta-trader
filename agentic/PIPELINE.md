@@ -213,12 +213,21 @@ Last Updated: 2026-07-01
 
 ## Deploy Checklist
 
+**ก่อน deploy `apps/web` ครั้งแรกบนเครื่องใหม่ทุกครั้ง** ต้องสร้าง `apps/web/.env.production` เอง (ไฟล์นี้ถูก gitignore ไว้ ไม่มีมากับ repo):
+```
+NEXT_PUBLIC_API_URL=https://atp-bot-trader-api.onebluesky882.workers.dev
+NEXT_PUBLIC_APP_NAME=ATP Bot Trader
+```
+**ถ้าลืมไฟล์นี้:** `NEXT_PUBLIC_API_URL` จะว่างเปล่า → ทุก API call จากเว็บ (login, register, dashboard, settings, strategy, ฯลฯ) จะยิงไปที่ web worker เอง แทนที่จะยิงไป backend จริง — พังทั้งเว็บแบบเงียบๆ ไม่มี build error เตือน (เจอจริงระหว่าง deploy วันนี้ 2026-07-01 หลัง sign-up ใช้งานไม่ได้)
+
+**บั๊กเปิดอยู่ (unresolved upstream):** `@opennextjs/cloudflare` (เวอร์ชันล่าสุด ณ ตอนนี้คือ 1.20.1) มีบั๊ก dynamic-require ที่ทำให้ทุก route 500 หลัง deploy — ต้องมี `NEXT_PRIVATE_MINIMAL_MODE = "1"` ใน `apps/web/wrangler.toml` `[vars]` (มีอยู่แล้ว, อย่าลบออก) ดู opennextjs-cloudflare#1232 — workaround นี้ปิด Next.js middleware ทั้งหมด แต่โปรเจกต์ไม่มี middleware.ts อยู่แล้วเลยไม่เสียอะไร
+
 ```bash
 # API
 pnpm type-check
 wrangler deploy   # จาก apps/api
 
-# Web
+# Web — ต้องมี .env.production ก่อน (ดูด้านบน)
 pnpm run deploy   # จาก apps/web
 ```
 
