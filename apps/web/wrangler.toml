@@ -3,6 +3,13 @@ main = ".open-next/worker.js"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Workaround for an unresolved @opennextjs/cloudflare bug (getMiddlewareManifest()
+# does a dynamic require() of middleware-manifest.json, which workerd can't do —
+# see opennextjs-cloudflare#1232). Forces Next.js into minimal mode, which skips
+# that code path. Safe here: this app has no middleware.ts, so there's nothing to lose.
+[vars]
+NEXT_PRIVATE_MINIMAL_MODE = "1"
+
 [assets]
 directory = ".open-next/assets"
 
