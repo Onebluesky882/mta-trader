@@ -63,8 +63,10 @@ function ParamChips({ params }: { params: StrategyParams }) {
           {k === 'bias' ? v : `${k}=${v}`}
         </span>
       ))}
-      {/* zones are pre-sorted biggest-timeframe-first by the backend (highest priority shown first) */}
-      {params.zones.map((z, i) => (
+      {/* zones are pre-sorted biggest-timeframe-first by the backend (highest priority shown first).
+          Fallback to [] for strategies saved before the zones[] refactor — those rows still
+          have the old flat shape in the DB with no zones key at all. */}
+      {(params.zones ?? []).map((z, i) => (
         <span key={`${z.timeframe}-${i}`} style={{
           fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
           background: 'var(--accent-dim)', border: '1px solid var(--accent-line)',
