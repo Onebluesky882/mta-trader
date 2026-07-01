@@ -3,7 +3,7 @@
 Status: ACTIVE
 Owner: CONDUCTOR
 Conductor Branch: main
-Last Updated: 2026-06-28
+Last Updated: 2026-07-01
 
 ---
 
@@ -24,6 +24,9 @@ Last Updated: 2026-06-28
 | stage-11-bot-trading | apps/api + MT5 EA | stage-10-production | IN_PROGRESS |
 | stage-12-auto-snapshot | apps/api | stage-11-bot-trading | DONE |
 | stage-13-compare-versions | apps/web | stage-12-auto-snapshot | DONE |
+| stage-14-ai-signal | apps/api + apps/web | stage-10-production | DONE |
+| stage-15-architecture-pivot | apps/api + MT5 EA | stage-14-ai-signal | DONE |
+| stage-16-strategy-engine | apps/api + apps/web + MT5 EA | stage-15-architecture-pivot | CODE_COMPLETE |
 
 ---
 
@@ -143,6 +146,71 @@ Last Updated: 2026-06-28
 
 ---
 
+### stage-14-ai-signal — DONE
+
+**Domain:** apps/api + apps/web
+**Depends On:** stage-10-production
+**Status:** `DONE`
+
+**เป้าหมาย:** ให้ AI วิเคราะห์ H4/H1 indicators แล้วออก BUY/SELL/HOLD signal พร้อม SL/TP ก่อน EA เปิด order จริง
+
+**Acceptance Criteria:**
+- [x] `POST /api/ai-signal/analyze` — รับ candle/indicator data, เรียก AI, คืน signal+confidence+reason+SL/TP
+- [x] `GET /api/ai-signal/latest`, `/history` — อ่าน signal ที่บันทึกไว้
+- [x] `GET/PUT /api/ai-config` — ตั้งค่า `aiEnabled`, `confidenceMin`, `rrMin`; EA อ่านผ่าน `/api/ai-config/active`
+- [x] หน้าเว็บ `/ai-config` — CRUD ผ่าน UI
+- [x] EA: `AiApproves()` เรียก AI ก่อนทุก trade เมื่อ `aiEnabled = true`, skip ถ้า confidence ต่ำกว่า threshold
+- [x] Neon green design system (theme ปัจจุบันของทั้งเว็บ) มาจาก stage นี้
+
+---
+
+### stage-15-architecture-pivot — DONE
+
+**Domain:** apps/api + MT5 EA
+**Depends On:** stage-14-ai-signal
+**Status:** `DONE`
+
+**เป้าหมาย:** ทดลอง multi-user data isolation แล้วตัดสินใจย้อนกลับเป็น single-user private app เพราะไม่จำเป็นต้องรองรับหลายบัญชี
+
+**สิ่งที่เกิดขึ้น (ทั้งสองทิศทางอยู่ใน stage เดียวเพราะ revert เกิดวันเดียวกัน):**
+- [x] (ลอง) เพิ่ม `user_id` filter ทุก route + `user_api_keys` table + `/account` page สำหรับ personal MT5 API key ต่อ user
+- [x] (ตัดสินใจย้อนกลับ) เอา per-user filtering ออก — ทุก route กลับไปใช้ singleton pattern (`id = 'singleton'`) ยกเว้น `trades` ที่ไม่ filter อะไรเลย
+- [x] MT5 auth กลับไปใช้ `MT5_WEBHOOK_SECRET` ตัวเดียว (shared secret) แทน per-user API key
+- [x] เปลี่ยน AI provider จาก Claude เป็น Groq (`llama-3.3-70b-versatile`, free tier)
+- [x] EA อัปเดตเป็น v3.0 — เรียก AI ก่อนทุก trade
+
+**หมายเหตุสำคัญสำหรับ worker ในอนาคต:**
+- `users` table (จาก stage-2, custom JWT auth) **ไม่มีโค้ดส่วนไหนอ่าน/เขียนแล้ว** — auth จริงทั้งหมดใช้ better-auth (`user`/`session`/`account`/`verification` tables ผ่าน `packages/auth`) `c.get('user').id` มาจากตาราง `user` เท่านั้น
+- `apps/api/src/routes/account.ts` ยังอยู่ในโค้ดแต่**ไม่ได้ register ใน `index.ts`** — dead code ค้างจาก revert นี้ ยังไม่ได้ลบ
+- `user_id` column ยังอยู่ในหลายตาราง (`trades`, `algorithm_settings`, ฯลฯ) แต่ query logic ไม่ filter ตามนี้แล้ว — เป็น column เดิมที่เหลือค้าง ไม่ใช่ bug
+
+---
+
+### stage-16-strategy-engine — CODE_COMPLETE
+
+**Domain:** apps/api + apps/web + MT5 EA
+**Depends On:** stage-15-architecture-pivot
+**Status:** `CODE_COMPLETE` (ยังไม่ผ่าน live MT5 field test — ดู stage-11)
+
+**เป้าหมาย:** ให้ client พิมพ์กลยุทธ์เป็น text ธรรมดา (เช่น "H1 demand zone, lower wick แตะกัน 5 แท่ง → BUY") แล้ว AI แปลงเป็น config ครั้งเดียว จากนั้น EA คำนวณ zone จริงจาก candle history เองทุก tick โดยไม่ต้องเรียก AI ต่อ trade (ประหยัด latency/cost) พร้อม track ผลกำไร/ขาดทุนแยกตามกลยุทธ์
+
+**หมายเหตุสถาปัตยกรรม:** `strategy_config` **มี per-user scoping จริง** (FK ไป `user(id)`) ต่างจาก stage-15 ที่เป็น singleton pattern ทั้งหมด — เป็นการตัดสินใจเฉพาะจุดตามคำขอ owner (เผื่อ client/Expo app/Telegram bot ในอนาคตที่อาจมีมากกว่า 1 บัญชีมาแชร์ backend เดียวกัน)
+
+**Acceptance Criteria:**
+- [x] DB: `strategy_config` table (FK → `user`, ไม่ใช่ `users` ตัวเก่า) + `trades.strategy_id` (FK → `strategy_config`)
+- [x] `schema.sql` เป็น idempotent ทั้งไฟล์ — ALTER TABLE (ไม่ idempotent โดยธรรมชาติ) แยกไปอยู่ `migrations/0001_trades_add_strategy_id.sql`
+- [x] API: `POST/GET /api/strategy`, `PUT /:id/activate`, `GET /:id/performance` (win rate, P&L), `GET /api/strategy/active` (EA polls ด้วย `X-MT5-Secret`)
+- [x] EA: `FindWickClusterZone()` (cluster candle Low/High จาก H1 จริงตาม `minWickTouches`/`proximityPoints`), `CheckStrategyEntry()`, `OpenStrategyPosition()` (fixed TP/SL points, tag order ด้วย `STRAT:<id>` สั้นเพราะ broker มักตัด comment ที่ ~31 ตัวอักษร)
+- [x] `mt5.ts` รับ `strategyId` จาก EA บันทึกลง `trades.strategy_id` เพื่อให้ performance tracking ทำงานจริง
+- [x] เว็บ `/strategy` — ฟอร์มกรอกกลยุทธ์ + list พร้อม Activate + performance panel แบบ expand
+- [x] Unit tests: `strategy.test.ts` 17 เทสต์ + แก้บั๊กเดิมที่ไม่เกี่ยวข้อง (`trades.ts` NaN validation, `mt5.test.ts` mock ไม่ครบ) — รวม 64/64 ผ่าน
+- [x] Typecheck ผ่านทั้ง `apps/api`, `apps/web`, `apps/admin`
+- [x] Verify ด้วย Playwright จริง (screenshot `/strategy` หลัง inject fake auth token) — เห็น form/nav/list render ถูกต้อง
+- [x] Migration รันแล้วทั้ง local D1 และ **remote D1 (production)** — ตรวจสอบ table/FK/index ครบ
+- [ ] ยังไม่ได้ทดสอบ entry จริงบน MT5 ของจริง (ต้องรอ EA ติดตั้งบนเครื่องจริงตาม stage-11 ก่อน ถึงจะเห็น zone-detection ทำงานกับราคาสด)
+
+---
+
 ## Deploy Checklist
 
 ```bash
@@ -152,6 +220,16 @@ wrangler deploy   # จาก apps/api
 
 # Web
 pnpm run deploy   # จาก apps/web
+```
+
+## Migrations Required (ก่อน deploy ครั้งแรกหลัง stage-16)
+
+```bash
+cd apps/api
+# ลำดับสำคัญ: รัน migration ก่อน แล้วค่อยรัน schema.sql
+# (schema.sql index บน trades.strategy_id ต้องมี column นี้อยู่ก่อนแล้ว)
+wrangler d1 execute DB --remote --file=src/db/migrations/0001_trades_add_strategy_id.sql
+wrangler d1 execute DB --remote --file=src/db/schema.sql
 ```
 
 ## Secrets Required
