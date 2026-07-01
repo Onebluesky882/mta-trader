@@ -3,7 +3,7 @@
 Status: ACTIVE
 Owner: CONDUCTOR
 Conductor Branch: main
-Last Updated: 2026-07-01
+Last Updated: 2026-07-02
 
 ---
 
@@ -28,6 +28,8 @@ Last Updated: 2026-07-01
 | stage-15-architecture-pivot | apps/api + MT5 EA | stage-14-ai-signal | DONE |
 | stage-16-strategy-engine | apps/api + apps/web + MT5 EA | stage-15-architecture-pivot | DONE |
 | stage-17-multi-symbol-strategy | apps/api + apps/web + MT5 EA | stage-16-strategy-engine | PLANNED |
+| stage-18-telegram-command-control | apps/api + apps/web + Telegram bot | stage-17-multi-symbol-strategy | PLANNED |
+| stage-19-forum-fix | apps/api + apps/web | stage-10-production | DONE |
 
 ---
 
@@ -265,6 +267,23 @@ Last Updated: 2026-07-01
 
 ---
 
+### stage-19-forum-fix — DONE
+
+**Domain:** apps/api + apps/web
+**Depends On:** stage-10-production
+**Status:** `DONE` — production incident พบและแก้ครบ 2026-07-02
+
+**หมายเหตุ:** forum (Q&A, reply แบบ nested, แนบรูป) มีโค้ดอยู่แล้วในเว็บ (ไม่เคยอยู่ใน Stage Overview เดิม — น่าจะสร้างนอก pipeline tracking) แต่ใช้งานจริงบน production ไม่ได้เลยเพราะ infra ไม่เคย provision ให้ครบ ทั้งหมดเป็นปัญหา config/infra ไม่ใช่โค้ดผิด:
+
+**Acceptance Criteria:**
+- [x] `forum_posts`/`forum_replies` table ไม่มีอยู่จริงใน remote D1 (migration 7 ไฟล์ไม่เคยถูกรัน) ทำให้ `GET/POST /api/forum` คืน 500 ทั้งหมด — รันครบแล้ว (ดู Migrations Required ด้านล่าง)
+- [x] `apps/web/components/navbar.tsx` `NAV_LINKS` ไม่มีลิงก์ `/forum` เลย ผู้ใช้เข้าไม่ถึงจาก header — เพิ่มกลับเข้าไปแล้ว
+- [x] R2 image-attach (presign upload/download) ไม่เคย provision: ไม่มี bucket, `R2_ACCOUNT_ID`/`R2_BUCKET_NAME` ว่างเปล่า, ไม่มี `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` secret — สร้าง bucket `atp-bot-trader-storage` + ตั้งค่าครบใน `wrangler.toml` + สร้าง R2 API token ผ่าน dashboard แล้วตั้งเป็น secret (ดู R2 storage checklist ด้านล่าง)
+- [x] Bucket ใหม่ไม่มี CORS policy ของตัวเอง (คนละอันกับ Hono `cors()` middleware) → browser block ตอน PUT ตรงไปที่ presigned URL — ตั้ง CORS rule แล้ว
+- [x] ยืนยัน end-to-end จริงบน production: presign upload → PUT (CORS header ถูกต้อง) → presign download → GET กลับมาตรงเนื้อหา, และโพสต์ forum จริงพร้อม `imageUrl` แล้วดึงกลับด้วยคนละ request ยืนยันว่าบันทึกลง D1 จริง (ไม่ใช่แค่ echo กลับ) — ลบข้อมูลทดสอบ (post/R2 object/user) ออกหมดแล้ว
+
+---
+
 ## Deploy Checklist
 
 **ก่อน deploy `apps/web` ครั้งแรกบนเครื่องใหม่ทุกครั้ง** ต้องสร้าง `apps/web/.env.production` เอง (ไฟล์นี้ถูก gitignore ไว้ ไม่มีมากับ repo):
@@ -295,6 +314,29 @@ cd apps/api
 # (schema.sql index บน trades.strategy_id ต้องมี column นี้อยู่ก่อนแล้ว)
 wrangler d1 execute DB --remote --file=src/db/migrations/0001_trades_add_strategy_id.sql
 wrangler d1 execute DB --remote --file=src/db/schema.sql
+```
+
+**Forum migrations** (`packages/db/migrations/forum*.sql`) — ต้องรันกับ remote D1 ด้วยเช่นกัน บน production instance ปัจจุบันไฟล์เหล่านี้ไม่เคยถูกรัน ทำให้ `forum_posts` table ไม่มีอยู่จริงและ `GET/POST /api/forum` คืน 500 ทั้งหมด (เจอและแก้แล้ว 2026-07-01). รันตามลำดับนี้ทุกครั้งที่ตั้ง D1 ใหม่:
+```bash
+cd apps/api
+wrangler d1 execute DB --remote --file=../../packages/db/migrations/forum.sql
+wrangler d1 execute DB --remote --file=../../packages/db/migrations/forum_category.sql
+wrangler d1 execute DB --remote --file=../../packages/db/migrations/forum_image_url.sql
+wrangler d1 execute DB --remote --file=../../packages/db/migrations/forum_nested_reply.sql
+wrangler d1 execute DB --remote --file=../../packages/db/migrations/forum_pin.sql
+wrangler d1 execute DB --remote --file=../../packages/db/migrations/forum_post_number.sql
+wrangler d1 execute DB --remote --file=../../packages/db/migrations/forum_status.sql
+```
+
+**R2 storage for forum image attach** — ต้องมีครบ 3 อย่างก่อน image upload/download (presign) ใน forum จะใช้งานได้ (เจอและแก้แล้ว 2026-07-01, bucket เดิมว่างเปล่าไม่มีอะไรตั้งไว้เลย):
+1. R2 bucket ต้องมีอยู่จริง — ปัจจุบันใช้ `atp-bot-trader-storage` (สร้างด้วย `wrangler r2 bucket create atp-bot-trader-storage`)
+2. `apps/api/wrangler.toml` `[vars]` ต้องมี `R2_ACCOUNT_ID` และ `R2_BUCKET_NAME` ตรงกับ bucket จริง (ห้ามปล่อยว่าง `""`) และต้องมี `[[r2_buckets]]` binding `BUCKET` ชี้ไป bucket เดียวกัน
+3. Secrets `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` (R2 API token แบบ Object Read & Write scope เฉพาะ bucket นี้ — สร้างจาก Cloudflare dashboard → R2 → Manage R2 API Tokens เท่านั้น ไม่มีทางสร้างผ่าน wrangler CLI ได้)
+4. **Bucket เองต้องมี CORS policy แยกต่างหาก** (คนละอันกับ Hono `cors()` middleware ใน `index.ts`) ไม่งั้น browser จะ block การ PUT ตรงไปที่ presigned URL ด้วย CORS error — เจอจริงตอน "image upload failed" เพราะ bucket ใหม่ไม่มี CORS rule เลย:
+```bash
+cd apps/api
+wrangler r2 bucket cors set atp-bot-trader-storage --file=<path-to-cors.json>
+# cors.json ต้องมี rules[].allowed.{origins,methods,headers} ตรงกับ frontend origin (all-tp-bot-web...) + PUT/GET/HEAD + Content-Type
 ```
 
 ## Secrets Required

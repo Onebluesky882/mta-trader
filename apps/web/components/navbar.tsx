@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { href: '/strategy',   label: 'Strategy' },
   { href: '/optimize',   label: 'Optimize' },
   { href: '/ai-config',  label: 'AI Config' },
+  { href: '/forum',      label: 'Forum' },
 ]
 
 export function Navbar() {

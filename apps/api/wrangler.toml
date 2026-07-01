@@ -6,8 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 FROM_EMAIL = "noreply@yourdomain.com"
 OWNER_EMAIL = "wansing05@gmail.com"
-R2_ACCOUNT_ID = ""
-R2_BUCKET_NAME = ""
+R2_ACCOUNT_ID = "c40a6cc1eb575a43f79e9b4d9cc6a88d"
+R2_BUCKET_NAME = "atp-bot-trader-storage"
 GITHUB_REPO_OWNER = ""
 GITHUB_TEMPLATE_REPO = ""
 # Secrets — set via: wrangler secret put <NAME>
@@ -20,6 +20,12 @@ GITHUB_TEMPLATE_REPO = ""
 # TELEGRAM_SECRET_TOKEN
 # TELEGRAM_CHAT_ID
 # MT5_WEBHOOK_SECRET
+# R2_ACCESS_KEY_ID      — R2 API token Access Key ID (dashboard: R2 > Manage API Tokens)
+# R2_SECRET_ACCESS_KEY  — R2 API token Secret Access Key
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "atp-bot-trader-storage"
 
 [[d1_databases]]
 binding = "DB"
