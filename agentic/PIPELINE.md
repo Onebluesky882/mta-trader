@@ -222,6 +222,8 @@ NEXT_PUBLIC_APP_NAME=ATP Bot Trader
 
 **บั๊กเปิดอยู่ (unresolved upstream):** `@opennextjs/cloudflare` (เวอร์ชันล่าสุด ณ ตอนนี้คือ 1.20.1) มีบั๊ก dynamic-require ที่ทำให้ทุก route 500 หลัง deploy — ต้องมี `NEXT_PRIVATE_MINIMAL_MODE = "1"` ใน `apps/web/wrangler.toml` `[vars]` (มีอยู่แล้ว, อย่าลบออก) ดู opennextjs-cloudflare#1232 — workaround นี้ปิด Next.js middleware ทั้งหมด แต่โปรเจกต์ไม่มี middleware.ts อยู่แล้วเลยไม่เสียอะไร
 
+**⚠️ deploy `apps/api` และ `apps/web` คู่กันเสมอเมื่อแก้ทั้งสองฝั่ง:** ถ้าแก้ schema/response shape ของ API (เช่น `strategy.ts` เปลี่ยนจาก flat fields เป็น `zones[]`) แล้ว deploy แค่ `apps/api` แต่ลืม `apps/web` — หน้าเว็บที่ยัง deploy ค้างเวอร์ชันเก่าจะอ่าน field ที่ backend ไม่ส่งมาแล้ว กลายเป็น `undefined` เงียบๆ ไม่มี error เตือน (เกิดขึ้นจริง 2 ครั้งในเซสชันนี้ — ครั้งแรกตอน timeframe field, ครั้งที่สองตอน zones[] refactor) เช็คด้วย `git log --oneline -- apps/web` เทียบกับ deploy ล่าสุดก่อนเชื่อว่า deploy ครบแล้ว
+
 ```bash
 # API
 pnpm type-check
