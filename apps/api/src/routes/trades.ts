@@ -34,13 +34,18 @@ tradesRouter.use('*', async (c, next) => {
 })
 
 tradesRouter.get('/', async (c) => {
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const limit = Math.min(200, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)))
+  const rawPage = c.req.query('page') ?? '1'
+  const rawLimit = c.req.query('limit') ?? '50'
   const from = c.req.query('from')
   const to = c.req.query('to')
 
+  if (isNaN(parseInt(rawPage, 10))) return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
+  if (isNaN(parseInt(rawLimit, 10))) return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
   if (from && isNaN(Date.parse(from))) return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
   if (to && isNaN(Date.parse(to))) return c.json({ error: 'Invalid parameters', code: 'INVALID_PARAMS' }, 400)
+
+  const page = Math.max(1, parseInt(rawPage, 10))
+  const limit = Math.min(200, Math.max(1, parseInt(rawLimit, 10)))
 
   try {
     const d1 = createD1Client(c.env.DB)

@@ -81,7 +81,7 @@ describe('POST /trade-open', () => {
 
 describe('POST /trade-close', () => {
   it('updates trade and returns 200', async () => {
-    mockFirst.mockResolvedValue({ id: '100001' })
+    mockFirst.mockResolvedValue({ id: '100001', symbol: 'EURUSD', direction: 'BUY', open_price: 1.085 })
     mockRun.mockResolvedValue(undefined)
 
     const payload = {
