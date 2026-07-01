@@ -87,6 +87,24 @@ export function useActivateStrategy() {
   })
 }
 
+export function useArchiveStrategy() {
+  const { apiFetch } = useApi()
+  const queryClient = useQueryClient()
+  return useMutation<{ id: string; archived: boolean }, Error, string>({
+    mutationFn: async (id) => {
+      const res = await apiFetch(`/api/strategy/${id}/archive`, { method: 'PUT' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(err.error ?? 'Failed to archive strategy')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['strategies'] })
+    },
+  })
+}
+
 export function useStrategyPerformance(id: string, enabled: boolean) {
   const { apiFetch } = useApi()
   return useQuery<StrategyPerformance>({

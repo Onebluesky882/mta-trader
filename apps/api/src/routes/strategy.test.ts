@@ -310,6 +310,55 @@ describe('PUT /:id/activate', () => {
     expect(body.isActive).toBe(true)
     expect(mockRun).toHaveBeenCalledTimes(2)
   })
+
+  it("does not touch other strategies' updated_at when deactivating them", async () => {
+    mockGetSession.mockResolvedValue({ user: mockUser })
+    mockFirst.mockResolvedValue({ id: 'abc123def456' })
+    mockRun.mockResolvedValue(undefined)
+
+    await strategyRouter.request('/abc123def456/activate', authedReq('/abc123def456/activate', { method: 'PUT' }), MOCK_ENV)
+
+    const [deactivateSql, deactivateParams] = mockRun.mock.calls[0] as [string, unknown[]]
+    expect(deactivateSql).not.toContain('updated_at')
+    expect(deactivateParams).toEqual(['user-1', 'abc123def456'])
+
+    const [activateSql] = mockRun.mock.calls[1] as [string, unknown[]]
+    expect(activateSql).toContain('updated_at')
+  })
+})
+
+// ── PUT /:id/archive ───────────────────────────────────────────────
+
+describe('PUT /:id/archive', () => {
+  it('returns 401 when not authenticated', async () => {
+    mockGetSession.mockResolvedValue(null)
+    const res = await strategyRouter.request('/abc123def456/archive', authedReq('/abc123def456/archive', { method: 'PUT' }), MOCK_ENV)
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 404 when the strategy does not belong to the user', async () => {
+    mockGetSession.mockResolvedValue({ user: mockUser })
+    mockFirst.mockResolvedValue(null)
+
+    const res = await strategyRouter.request('/nope/archive', authedReq('/nope/archive', { method: 'PUT' }), MOCK_ENV)
+    expect(res.status).toBe(404)
+  })
+
+  it('archives and deactivates the strategy', async () => {
+    mockGetSession.mockResolvedValue({ user: mockUser })
+    mockFirst.mockResolvedValue({ id: 'abc123def456' })
+    mockRun.mockResolvedValue(undefined)
+
+    const res = await strategyRouter.request('/abc123def456/archive', authedReq('/abc123def456/archive', { method: 'PUT' }), MOCK_ENV)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { archived: boolean }
+    expect(body.archived).toBe(true)
+
+    const [sql, params] = mockRun.mock.calls[0] as [string, unknown[]]
+    expect(sql).toContain('archived = 1')
+    expect(sql).toContain('is_active = 0')
+    expect(params).toContain('abc123def456')
+  })
 })
 
 // ── GET /:id/performance ──────────────────────────────────────────

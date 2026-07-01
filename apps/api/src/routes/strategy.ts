@@ -57,6 +57,7 @@ interface StrategyRow {
   raw_text: string
   params: string
   is_active: number
+  archived: number
   user_id: string
   created_at: string
   updated_at: string
@@ -146,7 +147,7 @@ strategyRouter.get('/active', async (c) => {
   if (!secret || secret !== c.env.MT5_WEBHOOK_SECRET) return c.json({ error: 'Unauthorized' }, 401)
 
   const d1 = createD1Client(c.env.DB)
-  const row = await d1.first<StrategyRow>('SELECT * FROM strategy_config WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 1')
+  const row = await d1.first<StrategyRow>("SELECT * FROM strategy_config WHERE is_active = 1 AND archived = 0 ORDER BY updated_at DESC LIMIT 1")
   if (!row) return c.json({ strategy: null })
   return c.json({ strategy: rowToStrategy(row) })
 })
@@ -165,7 +166,7 @@ strategyRouter.get('/', async (c) => {
   try {
     const d1 = createD1Client(c.env.DB)
     const rows = await d1.query<StrategyRow>(
-      'SELECT * FROM strategy_config WHERE user_id = ? ORDER BY updated_at DESC', [userId]
+      'SELECT * FROM strategy_config WHERE user_id = ? AND archived = 0 ORDER BY updated_at DESC', [userId]
     )
     return c.json({ strategies: rows.map(rowToStrategy) })
   } catch {
@@ -225,6 +226,27 @@ strategyRouter.put('/:id/activate', async (c) => {
     await d1.run('UPDATE strategy_config SET is_active = 1, updated_at = ? WHERE id = ?', [now, id])
 
     return c.json({ id, isActive: true, updatedAt: now })
+  } catch {
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+// PUT /api/strategy/:id/archive — hide a strategy from the list (soft delete)
+strategyRouter.put('/:id/archive', async (c) => {
+  const userId = c.get('user')?.id
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+  const id = c.req.param('id')
+
+  try {
+    const d1 = createD1Client(c.env.DB)
+    const existing = await d1.first<StrategyRow>('SELECT id FROM strategy_config WHERE id = ? AND user_id = ?', [id, userId])
+    if (!existing) return c.json({ error: 'Not found' }, 404)
+
+    const now = new Date().toISOString()
+    // An archived strategy shouldn't keep trading — deactivate it too.
+    await d1.run('UPDATE strategy_config SET archived = 1, is_active = 0, updated_at = ? WHERE id = ?', [now, id])
+
+    return c.json({ id, archived: true, updatedAt: now })
   } catch {
     return c.json({ error: 'Internal server error' }, 500)
   }

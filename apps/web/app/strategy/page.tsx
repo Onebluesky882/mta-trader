@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/store/useAppStore'
 import {
-  useStrategies, useCreateStrategy, useActivateStrategy, useStrategyPerformance,
+  useStrategies, useCreateStrategy, useActivateStrategy, useArchiveStrategy, useStrategyPerformance,
   type Strategy, type StrategyParams,
 } from '@/hooks/useStrategy'
 import { BackButton } from '@/components/back-button'
@@ -118,7 +118,14 @@ function StrategyRow({ s, expandedId, onToggleExpand }: {
   onToggleExpand: (id: string) => void
 }) {
   const { mutate: activate, isPending } = useActivateStrategy()
+  const { mutate: archive, isPending: isArchiving } = useArchiveStrategy()
   const isExpanded = expandedId === s.id
+
+  function handleArchive() {
+    if (window.confirm('เก็บกลยุทธ์นี้เข้า archive? จะไม่แสดงในลิสต์อีก (ถ้า active อยู่จะถูกปิดด้วย)')) {
+      archive(s.id)
+    }
+  }
 
   return (
     <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
@@ -165,6 +172,17 @@ function StrategyRow({ s, expandedId, onToggleExpand }: {
             }}
           >
             {s.isActive ? 'Active' : (isPending ? 'Activating…' : 'Activate')}
+          </button>
+          <button
+            onClick={handleArchive}
+            disabled={isArchiving}
+            style={{
+              fontSize: 12, fontWeight: 500, color: 'var(--text-faint)', background: 'none',
+              border: '1px solid var(--border)', borderRadius: 6, padding: '6px 12px',
+              cursor: isArchiving ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            {isArchiving ? 'Archiving…' : 'Archive'}
           </button>
         </div>
       </div>
