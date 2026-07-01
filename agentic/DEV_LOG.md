@@ -27,6 +27,11 @@ Log
 
 <!-- Add newest entries at the top -->
 
+Date: 2026-07-02
+File(s) changed: agentic/ROADMAP.md
+Reason: Dev directed Conductor to update ROADMAP.md in plain language to reflect the Strategy Engine going live (field-tested successfully on MT5 today) and to record the next two milestones Dev wants: multi-symbol trading (Gold/Oil/BTC, each with its own strategy) and Telegram command control (activate strategies and receive trade notifications entirely via Telegram, no web UI needed).
+Impact: Milestone Backlog now has M-010 (Strategy Engine, COMPLETE), M-011 (Multi-Symbol Trading, PLANNING), M-012 (Telegram Command Control, PLANNING). Current Progress and Next Steps sections updated to match. PIPELINE.md already has the matching detailed stages (stage-16 DONE, stage-17 and stage-18 PLANNED) — these milestones summarize them at the roadmap level; keep both in sync going forward.
+
 ---
 
 Date: 2026-06-28

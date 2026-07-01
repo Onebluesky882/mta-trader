@@ -1,7 +1,7 @@
 ---
 status: ACTIVE
 owner: CONDUCTOR
-last_updated: 2026-06-28
+last_updated: 2026-07-02
 ---
 
 # ROADMAP.md
@@ -88,6 +88,7 @@ Success Indicators:
 - Optimize + History เปรียบเทียบ algorithm config แบบ side-by-side
 - MT5 Bridge รับ trade-open, trade-close, heartbeat จาก MetaTrader 5 ผ่าน webhook
 - Telegram Bot แจ้งเตือนสถานะและสรุปผลการเทรดผ่าน /status /trades /today /help
+- **Strategy Engine (ใหม่ — เสร็จและทดสอบผ่านจริงวันนี้ 2026-07-02):** พิมพ์อธิบายกลยุทธ์เป็นข้อความธรรมดา (ไทยหรืออังกฤษก็ได้) → AI แปลงเป็นค่าที่ EA เข้าใจ ครั้งเดียวจบ ไม่ต้องเรียก AI ซ้ำทุก tick → บอทหาโซนซื้อ-ขาย (demand/supply zone) เองจากราคาจริงหลายไทม์เฟรมพร้อมกันได้ (เช่น H4 + H1 + M30 ในกลยุทธ์เดียว) → ทดสอบเปิด order จริงสำเร็จบนบัญชีเดโม่ IUX แล้ว
 
 ---
 
@@ -104,6 +105,9 @@ Success Indicators:
 | M-007 | Production Deploy | API + Web deploy บน Cloudflare, session persist ถูกต้อง | COMPLETE |
 | M-008 | Bot Trading Round | EA อ่าน settings, เปิด/ปิด position ครบรอบ, แจ้ง Telegram | IN_PROGRESS |
 | M-009 | Algorithm Tuning | บันทึก snapshot หลังครบรอบ, เปรียบเทียบ performance versions | PLANNING |
+| M-010 | Strategy Engine | พิมพ์กลยุทธ์เป็นข้อความ → AI แปลงเป็น config → บอทหาโซนเทรดเองจากราคาจริง หลายไทม์เฟรมพร้อมกันได้ | COMPLETE |
+| M-011 | Multi-Symbol Trading | เทรดได้หลายสินทรัพย์พร้อมกัน (ทอง/น้ำมัน/BTC) โดยแต่ละตัวมีกลยุทธ์ของตัวเอง | PLANNING |
+| M-012 | Telegram Command Control | สั่งเปิด-ปิดกลยุทธ์และรับแจ้งเตือนผลเทรดผ่าน Telegram ได้ทั้งหมด ไม่ต้องเปิดเว็บ | PLANNING |
 
 **Status values:** PLANNING · APPROVED · IN_PROGRESS · COMPLETE · CANCELLED
 
@@ -111,10 +115,10 @@ Success Indicators:
 
 ## Next Steps
 
-- ติดตั้ง MT5 EA บน MetaTrader 5 จริง (ไฟล์ `docs/mt5-ea-template.mq5`)
-- ทดสอบ heartbeat และ trade webhook จาก MT5 จริง
-- บันทึก algorithm snapshot แรกใน Optimize page
-- เปรียบเทียบผลลัพธ์ระหว่าง config versions
+- เพิ่มการเทรดหลายสินทรัพย์พร้อมกัน (ทอง/น้ำมัน/BTC) — แต่ละตัวมีกลยุทธ์ TP/SL ของตัวเอง (M-011)
+- ควบคุมบอทผ่าน Telegram ทั้งหมด — สั่งเปิด/ปิดกลยุทธ์ + รับแจ้งเตือนผลเทรด โดยไม่ต้องเปิดเว็บ (M-012)
+- เพิ่มปุ่ม copy ตัวอย่างคำสั่งกลยุทธ์บนหน้าเว็บ ช่วยให้ตั้งกลยุทธ์ใหม่ได้เร็วขึ้นโดยไม่ต้องพิมพ์เอง
+- บันทึก algorithm snapshot แรกใน Optimize page แล้วเปรียบเทียบผลลัพธ์ระหว่าง config versions
 
 ---
 
