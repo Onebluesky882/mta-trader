@@ -87,12 +87,15 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 );
 
 -- strategy_config — client-authored strategy text + AI-parsed trading rules
+-- user_id references the better-auth `user` table (session/account/user/verification,
+-- managed by packages/auth's drizzle schema) — NOT the legacy `users` table above,
+-- which nothing in apps/api actually reads or writes to anymore.
 CREATE TABLE IF NOT EXISTS strategy_config (
   id TEXT PRIMARY KEY,
   raw_text TEXT NOT NULL,
   params TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 0,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES `user`(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
