@@ -40,7 +40,7 @@ const SAMPLE_ROW = {
   id: 'abc123def456',
   raw_text: 'lower wick cluster at 4042, 5 touches, buy when price returns',
   params: JSON.stringify({
-    minWickTouches: 5, lookbackBars: 100, proximityPoints: 20,
+    timeframe: 'M15', minWickTouches: 5, lookbackBars: 100, proximityPoints: 20,
     biasToday: 'BUY', tpPoints: 300, slPoints: 150,
   }),
   is_active: 1,
@@ -122,7 +122,7 @@ describe('POST /', () => {
     mockRun.mockResolvedValue(undefined)
 
     const groqPayload = {
-      minWickTouches: 5, lookbackBars: 100, proximityPoints: 20,
+      timeframe: 'M30', minWickTouches: 5, lookbackBars: 100, proximityPoints: 20,
       biasToday: 'BUY', tpPoints: 300, slPoints: 150,
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
@@ -161,7 +161,8 @@ describe('POST /', () => {
     }), MOCK_ENV)
 
     expect(res.status).toBe(200)
-    const body = await res.json() as { params: { biasToday: string; minWickTouches: number; tpPoints: number; slPoints: number } }
+    const body = await res.json() as { params: { timeframe: string; biasToday: string; minWickTouches: number; tpPoints: number; slPoints: number } }
+    expect(body.params.timeframe).toBe('H1')
     expect(body.params.biasToday).toBe('SELL')
     expect(body.params.minWickTouches).toBe(3)
     expect(body.params.tpPoints).toBe(100)
@@ -179,6 +180,27 @@ describe('POST /', () => {
     }), MOCK_ENV)
 
     expect(res.status).toBe(500)
+  })
+
+  it('falls back to H1 when Groq returns an invalid timeframe', async () => {
+    mockGetSession.mockResolvedValue({ user: mockUser })
+    mockRun.mockResolvedValue(undefined)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        choices: [{ message: { content: '{"timeframe":"M5","biasToday":"BUY"}' } }],
+      }), { status: 200 })
+    ))
+
+    const res = await strategyRouter.request('/', authedReq('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawText: 'buy at demand zone on the 5 minute chart' }),
+    }), MOCK_ENV)
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { params: { timeframe: string } }
+    expect(body.params.timeframe).toBe('H1')
   })
 })
 

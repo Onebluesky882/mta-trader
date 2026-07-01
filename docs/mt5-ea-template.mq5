@@ -33,6 +33,7 @@ double g_rrMin         = 1.5;
 //--- Strategy config from API (text-parsed by AI, applied by EA)
 bool   g_strategyEnabled   = false;
 string g_strategyId        = "";
+string g_timeframe         = "H1";
 int    g_minWickTouches    = 3;
 int    g_lookbackBars      = 100;
 int    g_proximityPoints   = 20;
@@ -128,6 +129,18 @@ void CheckStrategyEntry() {
 }
 
 //+------------------------------------------------------------------+
+// MQL5's switch only works on ordinal types (int/enum), not strings —
+// this if/else ladder is the standard MQL5 equivalent for a string key.
+ENUM_TIMEFRAMES TimeframeFromString(string tf) {
+   if(tf == "M15") return PERIOD_M15;
+   if(tf == "M30") return PERIOD_M30;
+   if(tf == "H1")  return PERIOD_H1;
+   if(tf == "H4")  return PERIOD_H4;
+   if(tf == "D1")  return PERIOD_D1;
+   return PERIOD_H1;
+}
+
+//+------------------------------------------------------------------+
 // demand=true -> cluster candle lows (support/demand zone for BUY)
 // demand=false -> cluster candle highs (resistance/supply zone for SELL)
 ZoneResult FindWickClusterZone(bool demand) {
@@ -137,11 +150,12 @@ ZoneResult FindWickClusterZone(bool demand) {
 
    double point     = SymbolInfoDouble(g_symbol, SYMBOL_POINT);
    double tolerance = g_proximityPoints * point;
+   ENUM_TIMEFRAMES tf = TimeframeFromString(g_timeframe);
 
    double prices[];
    int copied = demand
-      ? CopyLow(g_symbol, PERIOD_H1, 1, g_lookbackBars, prices)
-      : CopyHigh(g_symbol, PERIOD_H1, 1, g_lookbackBars, prices);
+      ? CopyLow(g_symbol, tf, 1, g_lookbackBars, prices)
+      : CopyHigh(g_symbol, tf, 1, g_lookbackBars, prices);
    if(copied < g_minWickTouches) return result;
 
    int    bestTouches = 0;
@@ -409,6 +423,7 @@ void FetchStrategy() {
    }
 
    g_strategyId      = id;
+   string tf = JsonGetString(paramsJson, "timeframe");         if(tf != "") g_timeframe    = tf;
    int wt = (int)JsonGetNumber(paramsJson, "minWickTouches");  if(wt > 0) g_minWickTouches  = wt;
    int lb = (int)JsonGetNumber(paramsJson, "lookbackBars");    if(lb > 0) g_lookbackBars    = lb;
    int px = (int)JsonGetNumber(paramsJson, "proximityPoints"); if(px > 0) g_proximityPoints = px;
@@ -418,7 +433,7 @@ void FetchStrategy() {
 
    g_strategyEnabled   = true;
    g_lastStrategyFetch = TimeCurrent();
-   Print("[ATP] Strategy ", g_strategyId, " bias:", g_biasToday,
+   Print("[ATP] Strategy ", g_strategyId, " tf:", g_timeframe, " bias:", g_biasToday,
          " minTouches:", g_minWickTouches, " lookback:", g_lookbackBars,
          " proximity:", g_proximityPoints, " TP:", g_tpPoints, " SL:", g_slPoints);
 }

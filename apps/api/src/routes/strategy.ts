@@ -12,7 +12,11 @@ const TRUSTED_ORIGINS = [
   'http://localhost:3002',
 ]
 
+type Timeframe = 'M15' | 'M30' | 'H1' | 'H4' | 'D1'
+const TIMEFRAMES: Timeframe[] = ['M15', 'M30', 'H1', 'H4', 'D1']
+
 interface StrategyParams {
+  timeframe: Timeframe
   minWickTouches: number
   lookbackBars: number
   proximityPoints: number
@@ -47,6 +51,7 @@ async function parseStrategyText(apiKey: string, rawText: string): Promise<Strat
 
 Required JSON structure:
 {
+  "timeframe": "M15" | "M30" | "H1" | "H4" | "D1" (which chart timeframe to scan for the zone; default "H1" if not specified),
   "minWickTouches": <integer, minimum number of candle wicks that must cluster together to count as a demand/supply zone>,
   "lookbackBars": <integer, how many recent candles to scan, default 100 if not specified>,
   "proximityPoints": <integer, how close (in points) wick lows/highs must be to count as the same zone, default 20 if not specified>,
@@ -81,6 +86,7 @@ Required JSON structure:
   const parsed = JSON.parse(jsonMatch[0]) as Partial<StrategyParams>
 
   return {
+    timeframe: parsed.timeframe && TIMEFRAMES.includes(parsed.timeframe) ? parsed.timeframe : 'H1',
     minWickTouches: parsed.minWickTouches ?? 3,
     lookbackBars: parsed.lookbackBars ?? 100,
     proximityPoints: parsed.proximityPoints ?? 20,

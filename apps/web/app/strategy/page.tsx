@@ -48,6 +48,7 @@ function Feedback({ type, message }: { type: 'success' | 'error'; message: strin
 function ParamChips({ params }: { params: StrategyParams }) {
   const chips: Array<[string, string]> = [
     ['bias', params.biasToday],
+    ['tf', params.timeframe],
     ['wick touches', String(params.minWickTouches)],
     ['proximity', `${params.proximityPoints}pt`],
     ['TP', `${params.tpPoints}pt`],

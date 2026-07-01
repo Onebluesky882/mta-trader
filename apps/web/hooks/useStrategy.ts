@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useApi } from './use-api'
 
 export type StrategyParams = {
+  timeframe: 'M15' | 'M30' | 'H1' | 'H4' | 'D1'
   minWickTouches: number
   lookbackBars: number
   proximityPoints: number
