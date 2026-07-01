@@ -126,7 +126,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest     &request,
                         const MqlTradeResult      &result) {
    if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
-   if(!g_deal.SelectByTicket(trans.deal))       return;
+   g_deal.Ticket(trans.deal);
    if(g_deal.Magic() != MAGIC_NUMBER)           return;
 
    if(g_deal.Entry() == DEAL_ENTRY_IN) {
