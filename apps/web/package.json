@@ -24,13 +24,14 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
     "@cloudflare/next-on-pages": "^1.13.16",
     "@gover-agent/config": "workspace:*",
     "@opennextjs/cloudflare": "latest",
+    "@playwright/test": "^1.61.1",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "esbuild": "^0.25.0",
     "typescript": "latest",
     "vitest": "latest",
     "wrangler": "latest"
