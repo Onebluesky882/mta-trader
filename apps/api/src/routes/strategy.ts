@@ -97,7 +97,9 @@ If the strategy only mentions one timeframe, return a single-item zones array. N
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      // Cheapest/lightest Groq model — this is a low-volume, low-complexity
+      // parsing task (a few calls/day), no need for the 70B model.
+      model: 'llama-3.1-8b-instant',
       max_tokens: 400,
       temperature: 0.2,
       messages: [
