@@ -41,9 +41,13 @@ const DEFAULT_ZONE: ZoneRule = {
 function normalizeZone(z: Partial<ZoneRule> | undefined): ZoneRule {
   return {
     timeframe: z?.timeframe && TIMEFRAMES.includes(z.timeframe) ? z.timeframe : DEFAULT_ZONE.timeframe,
-    minWickTouches: z?.minWickTouches ?? DEFAULT_ZONE.minWickTouches,
-    lookbackBars: z?.lookbackBars ?? DEFAULT_ZONE.lookbackBars,
-    proximityPoints: z?.proximityPoints ?? DEFAULT_ZONE.proximityPoints,
+    // `||` not `??`: the model sometimes returns 0 instead of omitting a
+    // field, and 0 is never a sane value for any of these (0 touches always
+    // matches trivially, 0 lookback scans no candles, 0 tolerance is
+    // pointlessly strict) — treat it the same as "not specified".
+    minWickTouches: z?.minWickTouches || DEFAULT_ZONE.minWickTouches,
+    lookbackBars: z?.lookbackBars || DEFAULT_ZONE.lookbackBars,
+    proximityPoints: z?.proximityPoints || DEFAULT_ZONE.proximityPoints,
     includeBody: z?.includeBody ?? DEFAULT_ZONE.includeBody,
   }
 }
@@ -126,8 +130,11 @@ If the strategy only mentions one timeframe, return a single-item zones array. N
   return {
     zones,
     biasToday: parsed.biasToday && ['BUY', 'SELL', 'MIXED'].includes(parsed.biasToday) ? parsed.biasToday : 'MIXED',
-    tpPoints: parsed.tpPoints ?? 100,
-    slPoints: parsed.slPoints ?? 50,
+    // `||` not `??` — 0-point TP/SL means "close at entry price", which the
+    // broker would reject as invalid stops. Treat a 0 the model returns the
+    // same as an omitted field.
+    tpPoints: parsed.tpPoints || 100,
+    slPoints: parsed.slPoints || 50,
   }
 }
 
