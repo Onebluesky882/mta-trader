@@ -245,6 +245,26 @@ Last Updated: 2026-07-01
 
 ---
 
+### stage-18-telegram-command-control — PLANNED
+
+**Domain:** apps/api + apps/web + Telegram bot
+**Depends On:** stage-17-multi-symbol-strategy
+**Status:** `PLANNED` — วางแผนไว้ 2026-07-02 ยังไม่เริ่มเขียนโค้ด (มาจาก 4 ข้อที่ owner ระบุ)
+
+**เป้าหมาย:** ให้ควบคุมบอทและติดตามผลได้ทาง Telegram เป็นหลัก (ไม่ต้องเปิดเว็บ) เพราะ owner ต้องการ "โยนทุกอย่างไปทาง Telegram"
+
+**สถานะปัจจุบัน (มีอยู่แล้วจาก stage-9):** `/start` `/help` `/status` `/trades` `/today` — และมีแจ้งเตือน trade-open/trade-close (TP/SL)/bot-stopped อยู่แล้วใน `mt5.ts` (ต้อง verify ว่ายังทำงานถูกต้องกับ multi-strategy/multi-symbol ของ stage-16/17 ไหม)
+
+**สิ่งที่ owner ขอเพิ่ม (4 ข้อ, ยังไม่ชัดเจนหมด — ต้องคุยรายละเอียดก่อนเริ่มเขียนโค้ดจริง):**
+1. **Guideline/command template ui** — หน้าเว็บ (น่าจะ `/strategy`) มี template ตัวอย่างคำสั่งกลยุทธ์ (เช่น "H1 demand zone 5 แท่ง BUY TP 300 SL 150") พร้อมปุ่ม **Copy** ให้ผู้ใช้กดคัดลอกไปวางในช่อง textarea ได้เลย ไม่ต้องพิมพ์เอง
+2. **เทสคำสั่งและเทสบอท** — ยังไม่ชัดว่าหมายถึง unit test เพิ่ม, หรือหน้า/คำสั่งสำหรับรัน manual test บนบอทจริง ต้องถามเพิ่ม
+3. **สั่งคำสั่งผ่าน Telegram ได้ (push strategy)** — เพิ่ม Telegram command ใหม่ (เช่น `/activate <id>`) ให้ activate กลยุทธ์จาก Telegram ได้เลยโดยไม่ต้องเปิดเว็บ — ต้องมี service เช็คว่ากลยุทธ์อื่นถูก deactivate ตาม (ใช้ logic เดิมจาก `PUT /:id/activate` ได้เลย ไม่ต้องเขียนใหม่)
+4. **แจ้งเตือนเปิด/ปิดไม้ + กำไรขาดทุนผ่าน Telegram** — มีอยู่แล้วบางส่วน (stage-9) ต้อง verify ว่าครอบคลุมทุก strategy/symbol และข้อความชัดเจนพอ (ระบุ symbol ไหน strategy ไหน)
+
+**ต้องคุยก่อนเริ่ม:** scope ของข้อ 2 (เทสคำสั่ง/เทสบอท) และ Telegram command ใหม่ในข้อ 3 ต้องยืนยันชื่อคำสั่ง + สิทธิ์ (ใครสั่งได้บ้าง เช็คด้วย chat ID เดิมที่ผูกไว้หรือเปิดกว้างกว่านั้น)
+
+---
+
 ## Deploy Checklist
 
 **ก่อน deploy `apps/web` ครั้งแรกบนเครื่องใหม่ทุกครั้ง** ต้องสร้าง `apps/web/.env.production` เอง (ไฟล์นี้ถูก gitignore ไว้ ไม่มีมากับ repo):
