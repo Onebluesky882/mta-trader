@@ -219,7 +219,9 @@ strategyRouter.put('/:id/activate', async (c) => {
     if (!existing) return c.json({ error: 'Not found' }, 404)
 
     const now = new Date().toISOString()
-    await d1.run('UPDATE strategy_config SET is_active = 0, updated_at = ? WHERE user_id = ?', [now, userId])
+    // Only the strategy actually being activated should get a fresh updated_at —
+    // deactivating the others is a side effect of this action, not a real edit to them.
+    await d1.run('UPDATE strategy_config SET is_active = 0 WHERE user_id = ? AND id != ?', [userId, id])
     await d1.run('UPDATE strategy_config SET is_active = 1, updated_at = ? WHERE id = ?', [now, id])
 
     return c.json({ id, isActive: true, updatedAt: now })
