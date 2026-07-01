@@ -1,7 +1,7 @@
 # PROJECT.md
 
 ## Project Name
-mta-trader
+atp-bot-trader
 
 ## Goal
 Bot trader สำหรับ Forex บน MT5 — รันอัลกอริทึมการเทรดที่กำหนดเองโดย dev เพื่อ automate การซื้อขายในตลาด Forex
